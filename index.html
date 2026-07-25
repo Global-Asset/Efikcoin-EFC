@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pay by Bank Transfer — Efikcoin Eternal Ecosystem</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800&family=Syne:wght@400;600;700&family=Space+Mono:wght@400;700&display=swap');
+  :root{ --gold:#d4af37; --gold-dim:#a8862b; --bg:#0a0a0c; --panel:#131316; --panel-2:#1b1b1f; --border:#2a2a2f; --text:#f0ead6; --text-dim:#9a9a9f; --green:#3ecf8e; --red:#e5484d; --amber:#e5b84d; }
+  *{box-sizing:border-box;}
+  body{ margin:0; min-height:100vh; background:var(--bg); color:var(--text); font-family:'Syne',sans-serif; display:flex; align-items:center; justify-content:center; padding:24px; }
+  .card{ width:100%; max-width:420px; background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:28px; box-shadow:0 0 0 1px rgba(212,175,55,0.05), 0 20px 60px rgba(0,0,0,0.5); }
+  .brand{ display:flex; align-items:center; gap:10px; margin-bottom:22px; }
+  .brand-mark{ width:34px; height:34px; border-radius:50%; background:conic-gradient(from 180deg, var(--gold), var(--gold-dim), var(--gold)); display:flex; align-items:center; justify-content:center; font-family:'Orbitron',sans-serif; font-weight:800; color:#0a0a0c; font-size:14px; }
+  .brand-name{ font-family:'Orbitron',sans-serif; font-weight:700; letter-spacing:0.5px; font-size:15px; color:var(--gold); }
+  .brand-sub{ font-size:11px; color:var(--text-dim); }
+  label{ font-size:12px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.5px; display:block; margin:14px 0 6px; }
+  input, select{ width:100%; background:var(--panel-2); border:1px solid var(--border); color:var(--text); padding:12px; border-radius:8px; font-family:'Space Mono',monospace; font-size:14px; }
+  button{ width:100%; padding:14px; border-radius:10px; border:none; cursor:pointer; font-family:'Syne',sans-serif; font-weight:700; font-size:15px; margin-top:18px; background:linear-gradient(135deg,var(--gold),var(--gold-dim)); color:#0a0a0c; }
+  button:disabled{ opacity:0.5; cursor:not-allowed; }
+  .status{ margin-top:16px; padding:14px; border-radius:10px; font-size:13px; background:var(--panel-2); border:1px solid var(--border); display:none; font-family:'Space Mono',monospace; line-height:1.6; word-break:break-all; }
+  .status.show{ display:block; }
+  .status.pending{ border-color:var(--amber); color:var(--amber); }
+  .status.success{ border-color:var(--green); color:var(--green); }
+  .status.error{ border-color:var(--red); color:var(--red); }
+  .footer-note{ text-align:center; font-size:11px; color:var(--text-dim); margin-top:18px; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="brand">
+    <div class="brand-mark">E</div>
+    <div>
+      <div class="brand-name">EFIKCOIN PAY</div>
+      <div class="brand-sub">Bank Transfer Checkout</div>
+    </div>
+  </div>
+
+  <label>Amount (NGN)</label>
+  <input type="number" id="amount" placeholder="e.g. 5000" min="1" step="any">
+
+  <label>Email</label>
+  <input type="email" id="email" placeholder="customer@email.com">
+
+  <label>Phone</label>
+  <input type="tel" id="phone" placeholder="080xxxxxxxx">
+
+  <button id="payBtn">Pay by Bank Transfer</button>
+
+  <div class="status" id="statusBox"></div>
+  <div class="footer-note">Payments are verified server-side before confirming. Powered by Flutterwave.</div>
+</div>
+
+<script src="https://checkout.flutterwave.com/v3.js"></script>
+<script>
+// ============ CONFIG ============
+const FLW_PUBLIC_KEY = "FLWPUBK_TEST-66323cbc290185a8599f83c4e2de5c98-X"; // swap to live key when ready
+const VERIFY_ENDPOINT = "/api/verify-payment"; // your server route, see server.js below
+// =================================
+
+const payBtn = document.getElementById("payBtn");
+const statusBox = document.getElementById("statusBox");
+
+function setStatus(kind, msg) {
+  statusBox.className = "status show " + kind;
+  statusBox.textContent = msg;
+}
+
+payBtn.addEventListener("click", function () {
+  const amount = document.getElementById("amount").value;
+  const email = document.getElementById("email").value;
+  const phone = document.getElementById("phone").value;
+
+  if (!amount || Number(amount) <= 0) return setStatus("error", "Enter a valid amount.");
+  if (!email) return setStatus("error", "Enter your email.");
+
+  const txRef = "EFC-" + Date.now();
+
+  FlutterwaveCheckout({
+    public_key: FLW_PUBLIC_KEY,
+    tx_ref: txRef,
+    amount: Number(amount),
+    currency: "NGN",
+    payment_options: "banktransfer",
+    customer: { email: email, phone_number: phone },
+    customizations: {
+      title: "Efikcoin Pay",
+      description: "Payment to Efikcoin Eternal Ecosystem",
+      logo: "https://efikcoin.xyz/logo.png"
+    },
+    callback: function (data) {
+      // data.transaction_id comes back here — but this alone is NOT proof of
+      // payment. We send it to our server, which asks Flutterwave directly.
+      setStatus("pending", "Payment submitted. Verifying with Flutterwave...");
+      verifyOnServer(data.transaction_id, Number(amount), txRef);
+    },
+    onclose: function () {
+      if (!statusBox.classList.contains("success")) {
+        setStatus("error", "Checkout closed before completing payment.");
+      }
+    }
+  });
+});
+
+async function verifyOnServer(transactionId, expectedAmount, txRef) {
+  try {
+    const res = await fetch(VERIFY_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ transaction_id: transactionId, expected_amount: expectedAmount, tx_ref: txRef })
+    });
+    const result = await res.json();
+
+    if (result.verified) {
+      setStatus("success", "Payment confirmed ✓  Ref: " + txRef);
+      // Hook: trigger EFC credit / order fulfillment here
+    } else {
+      setStatus("error", "Could not verify payment: " + (result.reason || "unknown"));
+    }
+  } catch (err) {
+    setStatus("error", "Verification request failed: " + err.message);
+  }
+}
+</script>
+</body>
+</html>
