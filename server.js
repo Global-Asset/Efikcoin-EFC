@@ -1,57 +1,27 @@
-// server.js
-// Run: npm install express node-fetch dotenv
-// Set FLW_SECRET_KEY in a .env file — NEVER in client code, NEVER shared in chat.
+const crypto = require("crypto");
 
-require("dotenv").config();
-const express = require("express");
-const fetch = require("node-fetch");
-const app = express();
-app.use(express.json());
-
-const FLW_SECRET_KEY = process.env.FLW_SECRET_KEY; // e.g. FLWSECK_TEST-xxxxxxxx (or live)
-
-app.post("/api/verify-payment", async (req, res) => {
-  const { transaction_id, expected_amount, tx_ref } = req.body;
-
-  if (!transaction_id) {
-    return res.status(400).json({ verified: false, reason: "missing transaction_id" });
+app.post("/webhook/flutterwave", express.json(), async (req, res) => {
+  // Flutterwave signs every webhook with a secret hash YOU set in your dashboard.
+  // This check proves the request really came from Flutterwave, not an attacker.
+  const signature = req.headers["verif-hash"];
+  if (!signature || signature !== process.env.FLW_WEBHOOK_SECRET_HASH) {
+    return res.status(401).end();
   }
 
-  try {
-    const flwRes = await fetch(
-      `https://api.flutterwave.com/v3/transactions/${transaction_id}/verify`,
-      { headers: { Authorization: `Bearer ${FLW_SECRET_KEY}` } }
-    );
-    const flwData = await flwRes.json();
+  const event = req.body;
 
-    if (flwData.status !== "success") {
-      return res.json({ verified: false, reason: "flutterwave lookup failed" });
-    }
-
-    const tx = flwData.data;
-    const statusOk = tx.status === "successful";
-    const amountOk = tx.amount >= Number(expected_amount);
-    const currencyOk = tx.currency === "NGN";
-    const refOk = tx.tx_ref === tx_ref;
-
-    const verified = statusOk && amountOk && currencyOk && refOk;
-
-    if (!verified) {
-      return res.json({
-        verified: false,
-        reason: `status=${tx.status} amount=${tx.amount} currency=${tx.currency}`
-      });
-    }
-
-    // ---- Payment is real and confirmed. Do your fulfillment here: ----
-    // e.g. write to Firestore, credit EFC to the buyer's wallet, mark order paid.
-    // recordConfirmedPayment(tx);
-
-    return res.json({ verified: true, transaction: tx });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ verified: false, reason: "server error" });
+  if (event.status === "successful") {
+    await db.collection("bank_payments").doc(String(event.id)).set({
+      type: "BANK",
+      txRef: event.tx_ref,
+      amount: event.amount,
+      currency: event.currency,
+      customerEmail: event.customer?.email,
+      status: "confirmed",
+      source: "webhook",
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
   }
+
+  res.status(200).end(); // always respond 200 quickly, or Flutterwave retries
 });
-
-app.listen(3000, () => console.log("Payment verification server running on port 3000"));
