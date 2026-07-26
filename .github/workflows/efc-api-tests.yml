@@ -1,0 +1,130 @@
+name: EFC API Tests
+﻿
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+﻿
+
+jobs:
+  testnet:
+    name: Run Tests – Testnet
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+﻿
+
+      - name: Install Newman & HTML Reporter
+        run: npm install -g newman newman-reporter-htmlextra
+﻿
+
+      - name: Run Newman – Testnet
+        run: |
+          newman run \
+            "https://api.getpostman.com/collections/56887199-9ed44332-83a5-4190-8b0b-977a6b67d678?apikey=${{ secrets.POSTMAN_API_KEY }}" \
+            --environment "https://api.getpostman.com/environments/56887199-eb95dc10-ef35-4264-81de-1039771aa63b?apikey=${{ secrets.POSTMAN_API_KEY }}" \
+            --env-var "api_key=${{ secrets.EFC_API_KEY_TESTNET }}" \
+            --env-var "auth_token=${{ secrets.EFC_AUTH_TOKEN_MAINNET }}" \
+            --env-var "waf_bypass_token=${{ secrets.WAF_BYPASS_TOKEN }}" \
+            --env-var "cf_clearance=${{ secrets.CF_CLEARANCE }}" \
+            --env-var "efc_contract=0x677ce9cba67f7484ea951a12897ce780cfd8fed1" \
+            --env-var "wallet_address=${{ secrets.WALLET_ADDRESS_MAINNET }}" \
+            --env-var "user_email=${{ secrets.USER_EMAIL }}" \
+            --env-var "user_password=${{ secrets.USER_PASSWORD }}" \
+            --reporters htmlextra \
+            --reporter-htmlextra-export testnet-report.html
+﻿
+
+      - name: Upload Testnet Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: testnet-report
+          path: testnet-report.html
+          retention-days: 30
+﻿
+
+  staging:
+    name: Run Tests – Staging
+    runs-on: ubuntu-latest
+    needs: testnet
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+﻿
+
+      - name: Install Newman & HTML Reporter
+        run: npm install -g newman newman-reporter-htmlextra
+﻿
+
+      - name: Run Newman – Staging
+        run: |
+          newman run \
+            "https://api.getpostman.com/collections/56887199-9ed44332-83a5-4190-8b0b-977a6b67d678?apikey=${{ secrets.POSTMAN_API_KEY }}" \
+            --environment "https://api.getpostman.com/environments/56887199-ef4d4723-ca53-43d0-a444-664721c19c4b?apikey=${{ secrets.POSTMAN_API_KEY }}" \
+            --env-var "api_key=${{ secrets.EFC_API_KEY_STAGING }}" \
+            --env-var "auth_token=${{ secrets.EFC_AUTH_TOKEN_MAINNET }}" \
+            --env-var "waf_bypass_token=${{ secrets.WAF_BYPASS_TOKEN }}" \
+            --env-var "cf_clearance=${{ secrets.CF_CLEARANCE }}" \
+            --env-var "efc_contract=0x677ce9cba67f7484ea951a12897ce780cfd8fed1" \
+            --env-var "wallet_address=${{ secrets.WALLET_ADDRESS_MAINNET }}" \
+            --env-var "user_email=${{ secrets.USER_EMAIL }}" \
+            --env-var "user_password=${{ secrets.USER_PASSWORD }}" \
+            --reporters htmlextra \
+            --reporter-htmlextra-export staging-report.html
+﻿
+
+      - name: Upload Staging Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: staging-report
+          path: staging-report.html
+          retention-days: 30
+﻿
+
+  mainnet:
+    name: Run Tests – Mainnet (REAL FUNDS)
+    runs-on: ubuntu-latest
+    needs: staging
+    environment: mainnet
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+﻿
+
+      - name: Install Newman & HTML Reporter
+        run: npm install -g newman newman-reporter-htmlextra
+﻿
+
+      - name: Run Newman – Mainnet
+        run: |
+          newman run \
+            "https://api.getpostman.com/collections/56887199-9ed44332-83a5-4190-8b0b-977a6b67d678?apikey=${{ secrets.POSTMAN_API_KEY }}" \
+            --environment "https://api.getpostman.com/environments/56887199-c2871f73-54c5-4dcf-ba7d-74d224bc571e?apikey=${{ secrets.POSTMAN_API_KEY }}" \
+            --env-var "api_key=${{ secrets.EFC_API_KEY_MAINNET }}" \
+            --env-var "auth_token=${{ secrets.EFC_AUTH_TOKEN_MAINNET }}" \
+            --env-var "waf_bypass_token=${{ secrets.WAF_BYPASS_TOKEN }}" \
+            --env-var "cf_clearance=${{ secrets.CF_CLEARANCE }}" \
+            --env-var "efc_contract=0x677ce9cba67f7484ea951a12897ce780cfd8fed1" \
+            --env-var "wallet_address=${{ secrets.WALLET_ADDRESS_MAINNET }}" \
+            --env-var "user_email=${{ secrets.USER_EMAIL }}" \
+            --env-var "user_password=${{ secrets.USER_PASSWORD }}" \
+            --bail \
+            --reporters htmlextra \
+            --reporter-htmlextra-export mainnet-report.html
+﻿
+
+      - name: Upload Mainnet Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mainnet-report
+          path: mainnet-report.html
+          retention-days: 90
