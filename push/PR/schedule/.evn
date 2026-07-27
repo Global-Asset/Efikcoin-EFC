@@ -1,0 +1,13 @@
+newman run "https://api.getpostman.com/collections/56887199-9ed44332-83a5-4190-8b0b-977a6b67d678?apikey=YOUR_POSTMAN_API_KEY" \
+  --environment "https://api.getpostman.com/environments/56887199-c2871f73-54c5-4dcf-ba7d-74d224bc571e?apikey=YOUR_POSTMAN_API_KEY" \
+  --env-var "api_key=YOUR_MAINNET_API_KEY" \
+  --env-var "auth_token=YOUR_AUTH_TOKEN" \
+  --env-var "waf_bypass_token=YOUR_SECRET" \
+  --env-var "cf_clearance=YOUR_CF_CLEARANCE" \
+  --env-var "efc_contract=0x677ce9cba67f7484ea951a12897ce780cfd8fed1" \
+  --env-var "wallet_address=0xC5AD5cfcF81AD63a94227334b898eafCe6B27cCA" \
+  --env-var "user_email=YOUR_EMAIL" \
+  --env-var "user_password=YOUR_PASSWORD" \
+  --bail \
+  --reporters htmlextra \
+  --reporter-htmlextra-export mainnet-report.html
