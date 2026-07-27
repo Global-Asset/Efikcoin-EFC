@@ -1,0 +1,5 @@
+push/PR/schedule/manual
+        │
+        ▼
+   [testnet] ──── passes ────▶ [staging] ──── passes ────▶ [mainnet]
+                                                            (requires reviewer approval)
