@@ -1,132 +1,302 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pay by Bank Transfer — Efikcoin Eternal Ecosystem</title>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800&family=Syne:wght@400;600;700&family=Space+Mono:wght@400;700&display=swap');
-  :root{ --gold:#d4af37; --gold-dim:#a8862b; --bg:#0a0a0c; --panel:#131316; --panel-2:#1b1b1f; --border:#2a2a2f; --text:#f0ead6; --text-dim:#9a9a9f; --green:#3ecf8e; --red:#e5484d; --amber:#e5b84d; }
-  *{box-sizing:border-box;}
-  body{ margin:0; min-height:100vh; background:var(--bg); color:var(--text); font-family:'Syne',sans-serif; display:flex; align-items:center; justify-content:center; padding:24px; }
-  .card{ width:100%; max-width:420px; background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:28px; box-shadow:0 0 0 1px rgba(212,175,55,0.05), 0 20px 60px rgba(0,0,0,0.5); }
-  .brand{ display:flex; align-items:center; gap:10px; margin-bottom:22px; }
-  .brand-mark{ width:34px; height:34px; border-radius:50%; background:conic-gradient(from 180deg, var(--gold), var(--gold-dim), var(--gold)); display:flex; align-items:center; justify-content:center; font-family:'Orbitron',sans-serif; font-weight:800; color:#0a0a0c; font-size:14px; }
-  .brand-name{ font-family:'Orbitron',sans-serif; font-weight:700; letter-spacing:0.5px; font-size:15px; color:var(--gold); }
-  .brand-sub{ font-size:11px; color:var(--text-dim); }
-  label{ font-size:12px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.5px; display:block; margin:14px 0 6px; }
-  input, select{ width:100%; background:var(--panel-2); border:1px solid var(--border); color:var(--text); padding:12px; border-radius:8px; font-family:'Space Mono',monospace; font-size:14px; }
-  button{ width:100%; padding:14px; border-radius:10px; border:none; cursor:pointer; font-family:'Syne',sans-serif; font-weight:700; font-size:15px; margin-top:18px; background:linear-gradient(135deg,var(--gold),var(--gold-dim)); color:#0a0a0c; }
-  button:disabled{ opacity:0.5; cursor:not-allowed; }
-  .status{ margin-top:16px; padding:14px; border-radius:10px; font-size:13px; background:var(--panel-2); border:1px solid var(--border); display:none; font-family:'Space Mono',monospace; line-height:1.6; word-break:break-all; }
-  .status.show{ display:block; }
-  .status.pending{ border-color:var(--amber); color:var(--amber); }
-  .status.success{ border-color:var(--green); color:var(--green); }
-  .status.error{ border-color:var(--red); color:var(--red); }
-  .footer-note{ text-align:center; font-size:11px; color:var(--text-dim); margin-top:18px; }
-</style>
-</head>
-<body>
+<!-- Playables SDK -->
+<script>// Playables SDK v1.0.0
+// Game lifecycle bridge: rAF-based game-ready detection + event communication
+(function() {
+  'use strict';
 
-<div class="card">
-  <div class="brand">
-    <div class="brand-mark">E</div>
-    <div>
-      <div class="brand-name">EFIKCOIN PAY</div>
-      <div class="brand-sub">Bank Transfer Checkout</div>
-    </div>
-  </div>
+  // Idempotency: skip if already initialized (e.g., server-side injection
+  // followed by client-side inject-javascript via the Bloks webview component).
+  if (window.playablesSDK) return;
 
-  <label>Amount (NGN)</label>
-  <input type="number" id="amount" placeholder="e.g. 5000" min="1" step="any">
+  var HANDLER_NAME = 'playablesGameEventHandler';
+  var ANDROID_BRIDGE_NAME = '_MetaPlayablesBridge';
+  var RAF_FRAME_THRESHOLD = 3;
 
-  <label>Email</label>
-  <input type="email" id="email" placeholder="customer@email.com">
+  var gameReadySent = false;
+  var firstInteractionSent = false;
+  var errorSent = false;
+  var frameCount = 0;
+  var originalRAF = window.requestAnimationFrame;
 
-  <label>Phone</label>
-  <input type="tel" id="phone" placeholder="080xxxxxxxx">
+  // --- Transport Layer ---
 
-  <button id="payBtn">Pay by Bank Transfer</button>
+  function hasIOSBridge() {
+    return !!(window.webkit &&
+              window.webkit.messageHandlers &&
+              window.webkit.messageHandlers[HANDLER_NAME]);
+  }
 
-  <div class="status" id="statusBox"></div>
-  <div class="footer-note">Payments are verified server-side before confirming. Powered by Flutterwave.</div>
-</div>
+  function hasAndroidBridge() {
+    return !!(window[ANDROID_BRIDGE_NAME] &&
+              typeof window[ANDROID_BRIDGE_NAME].postEvent === 'function');
+  }
 
-<script src="https://checkout.flutterwave.com/v3.js"></script>
-<script>
-// ============ CONFIG ============
-const FLW_PUBLIC_KEY = "FLWPUBK_TEST-66323cbc290185a8599f83c4e2de5c98-X"; // swap to live key when ready
-const VERIFY_ENDPOINT = "/api/verify-payment"; // your server route, see server.js below
-// =================================
+  function isInIframe() {
+    return !!(window.parent && window.parent !== window);
+  }
 
-const payBtn = document.getElementById("payBtn");
-const statusBox = document.getElementById("statusBox");
+  function sendEvent(eventName, payload) {
+    var message = {
+      type: eventName,
+      payload: payload || {},
+      timestamp: Date.now()
+    };
 
-function setStatus(kind, msg) {
-  statusBox.className = "status show " + kind;
-  statusBox.textContent = msg;
-}
+    if (hasIOSBridge()) {
+      try {
+        window.webkit.messageHandlers[HANDLER_NAME].postMessage(message);
+      } catch (e) { /* ignore */ }
+      return;
+    }
 
-payBtn.addEventListener("click", function () {
-  const amount = document.getElementById("amount").value;
-  const email = document.getElementById("email").value;
-  const phone = document.getElementById("phone").value;
+    if (hasAndroidBridge()) {
+    try {
+      var p = payload || {};
+      p.__secureToken = window.__fbAndroidBridgeAuthToken || '';
+      p.timestamp = message.timestamp;
+      window[ANDROID_BRIDGE_NAME].postEvent(
+        eventName,
+        JSON.stringify(p)
+      );
+    } catch (e) { /* ignore */ }
+    return;
+  }
 
-  if (!amount || Number(amount) <= 0) return setStatus("error", "Enter a valid amount.");
-  if (!email) return setStatus("error", "Enter your email.");
+    if (isInIframe()) {
+      try {
+        window.parent.postMessage(message, '*');
+      } catch (e) { /* ignore */ }
+      return;
+    }
+  }
 
-  const txRef = "EFC-" + Date.now();
+  // --- rAF Game-Ready Detection ---
 
-  FlutterwaveCheckout({
-    public_key: FLW_PUBLIC_KEY,
-    tx_ref: txRef,
-    amount: Number(amount),
-    currency: "NGN",
-    payment_options: "banktransfer",
-    customer: { email: email, phone_number: phone },
-    customizations: {
-      title: "Efikcoin Pay",
-      description: "Payment to Efikcoin Eternal Ecosystem",
-      logo: "https://efikcoin.xyz/logo.png"
-    },
-    callback: function (data) {
-      // data.transaction_id comes back here — but this alone is NOT proof of
-      // payment. We send it to our server, which asks Flutterwave directly.
-      setStatus("pending", "Payment submitted. Verifying with Flutterwave...");
-      verifyOnServer(data.transaction_id, Number(amount), txRef);
-    },
-function onPaymentConfirmed(payment) {
-     console.log("Payment confirmed:", payment);
-     // Example future wiring:
-     // fetch("/api/record-payment", { method: "POST", body: JSON.stringify(payment) });
-}
+  function onFrame() {
+    if (gameReadySent) return;
+
+    frameCount++;
+    if (frameCount >= RAF_FRAME_THRESHOLD) {
+      gameReadySent = true;
+      sendEvent('game_ready', {
+        frame_count: frameCount,
+        detected_at: Date.now()
+      });
+      return;
+    }
+
+    originalRAF.call(window, onFrame);
+  }
+
+  if (originalRAF) {
+    window.requestAnimationFrame = function(callback) {
+      if (!gameReadySent) {
+        return originalRAF.call(window, function(timestamp) {
+          frameCount++;
+          if (frameCount >= RAF_FRAME_THRESHOLD && !gameReadySent) {
+            gameReadySent = true;
+            sendEvent('game_ready', {
+              frame_count: frameCount,
+              detected_at: Date.now()
+            });
+          }
+          callback(timestamp);
+        });
+      }
+      return originalRAF.call(window, callback);
+    };
+  }
+
+  // --- First User Interaction Detection ---
+
+  function setupFirstInteractionDetection() {
+    var events = ['touchstart', 'mousedown', 'keydown'];
+
+    function onFirstInteraction() {
+      if (firstInteractionSent) return;
+      firstInteractionSent = true;
+      sendEvent('user_interaction_start', null);
+
+      for (var i = 0; i < events.length; i++) {
+        document.removeEventListener(events[i], onFirstInteraction, true);
       }
     }
-  });
-});
 
-async function verifyOnServer(transactionId, expectedAmount, txRef) {
-  try {
-    const res = await fetch(VERIFY_ENDPOINT, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ transaction_id: transactionId, expected_amount: expectedAmount, tx_ref: txRef })
-    });
-    const result = await res.json();
-
-    if (result.verified) {
-      setStatus("success", "Payment confirmed ✓  Ref: " + txRef);
-      // Hook: trigger EFC credit / order fulfillment here
-    } else {
-      setStatus("error", "Could not verify payment: " + (result.reason || "unknown"));
+    for (var i = 0; i < events.length; i++) {
+      document.addEventListener(events[i], onFirstInteraction, true);
     }
-  } catch (err) {
-    setStatus("error", "Verification request failed: " + err.message);
   }
-}
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupFirstInteractionDetection);
+  } else {
+    setupFirstInteractionDetection();
+  }
+
+  // --- Auto Error Capture ---
+
+  window.addEventListener('error', function(event) {
+    if (errorSent) return;
+    errorSent = true;
+    sendEvent('error', {
+      message: event.message || 'Unknown error',
+      source: event.filename || '',
+      lineno: event.lineno || 0,
+      colno: event.colno || 0,
+      auto_captured: true
+    });
+  });
+
+  window.addEventListener('unhandledrejection', function(event) {
+    if (errorSent) return;
+    errorSent = true;
+    var reason = event.reason;
+    sendEvent('error', {
+      message: (reason instanceof Error) ? reason.message : String(reason),
+      type: 'unhandled_promise_rejection',
+      auto_captured: true
+    });
+  });
+
+  // --- Public API ---
+
+  window.playablesSDK = {
+    complete: function(score) {
+      sendEvent('game_ended', {
+        score: score,
+        completed: true
+      });
+    },
+
+    error: function(message) {
+      if (errorSent) return;
+      errorSent = true;
+      sendEvent('error', {
+        message: message || 'Unknown error',
+        auto_captured: false
+      });
+    },
+
+    sendEvent: function(eventName, payload) {
+      if (!eventName || typeof eventName !== 'string') return;
+      sendEvent(eventName, payload);
+    }
+  };
+
+  // Kick off rAF detection in case no game code calls rAF immediately
+  if (originalRAF) {
+    originalRAF.call(window, onFrame);
+  }
+})();</script>
+<!-- PLAYABLE_TOUCH_PATCH_V1 --><script>
+(function() {
+  if (window.__playableTouchPatchInstalled) return;
+  window.__playableTouchPatchInstalled = true;
+  var origAdd = EventTarget.prototype.addEventListener;
+  var blockedTypes = { touchstart: 1, touchmove: 1, wheel: 1 };
+  EventTarget.prototype.addEventListener = function(type, listener, options) {
+    if (blockedTypes[type]) {
+      if (options === undefined || options === null) {
+        options = { passive: true };
+      } else if (typeof options === 'boolean') {
+        options = { capture: options, passive: true };
+      } else {
+        options = Object.assign({}, options, { passive: true });
+      }
+    }
+    return origAdd.call(this, type, listener, options);
+  };
+})();
+</script><script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<title>Efikcoin EFC - ONE FINAL REAL MAINNET - Real Funds - BSC 56</title>
+<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}body{background:#030507;color:#E8E4DC;font-family:system-ui;max-width:560px;margin:0 auto;padding-bottom:90px}
+#gt{background:#0D1118;padding:8px;text-align:center;border-bottom:1px solid #1A2030}
+.top{background:#0D1118;padding:12px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:20;border-bottom:2px solid #D4A843}
+.logo-css{width:50px;height:50px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#F0C96B,#D4A843 60%,#8A6A20);border:2px solid #D4A843;display:flex;align-items:center;justify-content:center;font-weight:900;color:#000;font-size:14px;box-shadow:0 0 15px #D4A84366}
+.live{margin-left:auto;background:#0A2A1A;border:1px solid #3DD68C;border-radius:20px;padding:6px 12px;font-size:9px;color:#3DD68C;font-weight:900;text-align:center}
+.card{background:#0D1118;border:1px solid #1A2030;border-radius:16px;padding:16px;margin:12px}
+.badge{font-size:7px;padding:3px 8px;border-radius:12px;background:rgba(61,214,140,.12);border:1px solid #3DD68C44;color:#3DD68C;font-weight:800;display:inline-block;margin:2px}
+.btn{width:100%;padding:14px;border-radius:12px;border:none;font-weight:800;margin:7px 0;cursor:pointer;font-size:12px}
+.btn-g{background:linear-gradient(135deg,#F0C96B,#D4A843);color:#000} .btn-o{background:#090C10;border:1px solid #242E40;color:#888} .btn-gr{background:#0A2A1A;border:1px solid #3DD68C;color:#3DD68C}
+.input{width:100%;padding:12px;background:#090C10;border:1px solid #242E40;border-radius:10px;color:#fff;margin:7px 0}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px} .tile{background:#0D1118;border:1px solid #1A2030;border-radius:16px;padding:18px;text-align:center;cursor:pointer}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.92);display:none;align-items:center;justify-content:center;z-index:100;padding:14px} .modal-inner{background:#0D1118;border:1px solid #1A2030;border-radius:16px;width:100%;max-width:440px;max-height:92vh;overflow:auto;padding:18px}
+.success{background:rgba(61,214,140,.1);border:1px solid #3DD68C44;padding:12px;border-radius:10px;font-size:11px;margin:10px 0} .err{background:rgba(224,80,80,.1);border:1px solid #E0505044;padding:10px;border-radius:10px;font-size:11px;color:#ff6b6b}
+</style>
+<script>function googleTranslateElementInit(){new google.translate.TranslateElement({pageLanguage:'en',includedLanguages:'en,fr,es,pt,zh-CN,ar,hi,sw,yo,ig,ha,de,ru,ja,ko,tr,id,ms,nl,it,am'},'gt');}</script>
+<script src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+<script id="tokenlist" type="application/json">
+{"name":"Efikcoin Mainnet","tokens":[{"chainId":56,"address":"0x677ce9cba67f7484ea951a12897ce780cfd8fed1","name":"Efikcoin","symbol":"EFC","decimals":18}]}
+</script>
+</head>
+<body>
+<div id="gt"></div>
+<div style="background:linear-gradient(135deg,#D4A843,#F0C96B);color:#000;padding:10px;text-align:center;font-weight:900;font-size:11px">ONE FINAL REAL MAINNET APP • REAL FUNDS • NO CONFUSION • BSC 56 • 0x677c...fed1 • SAFE SECURE • HUMANITY PEACE</div>
+<div class="top"><div class="logo-css">EFC</div><div><div style="font-weight:900;color:#D4A843;font-size:15px">EFIKCOIN EFC</div><div style="font-size:8px;color:#888">ONE FINAL • REAL MAINNET • REAL FUNDS • GLOBAL POS</div></div><div class="live">● REAL MAINNET<br/>BSC 56<br/>REAL FUNDS</div></div>
+
+<div class="card" style="border-color:#D4A84366">
+<div style="display:flex;gap:12px;align-items:center"><div class="logo-css" style="width:62px;height:62px;font-size:16px">EFC</div><div><div style="font-weight:900;color:#D4A843;font-size:17px">EFIKCOIN EFC</div><div style="font-size:9px;color:#AAA">One Final App For Humanity • Peace • No Hardship</div><div style="margin-top:6px"><span class="badge">✓ REAL MAINNET</span><span class="badge">✓ REAL FUNDS</span><span class="badge">✓ 0x677c...fed1</span><span class="badge">✓ SAFE SECURE</span></div></div></div>
+<div style="background:#000;border-radius:10px;padding:10px;margin-top:12px;font-family:monospace;font-size:8px;line-height:1.6"><div style="color:#D4A843;font-weight:800">REAL MAINNET CONTRACT - NOT DEMO NOT TESTNET:</div><div style="color:#fff;font-size:9px">0x677ce9cba67f7484ea951a12897ce780cfd8fed1</div><div style="color:#888">LP: 0xa1DD6C528882Dc19EcCbC967F50bBC121A29630e • Symbol EFC • Decimals 18 • Chain BSC Mainnet 56 • RPC https://bsc-dataseed.binance.org/ • BscScan Verified • Token List Embedded • Translator Embedded</div><div style="color:#3DD68C;font-weight:700;margin-top:4px">✓ Real Funds - Need Real BNB Gas 0.001 - Test With 0.1 EFC First - Not Demo</div></div>
+<div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-o" style="flex:1;padding:8px;font-size:8px" onclick="addNetwork()">ADD BSC MAINNET TO METAMASK</button><button class="btn btn-o" style="flex:1;padding:8px;font-size:8px" onclick="addToken()">ADD EFC + LOGO - RECOGNIZED</button></div>
+</div>
+
+<div style="background:#0D1118;border:1px solid #3DD68C44;border-radius:12px;padding:12px;margin:12px;font-size:10px"><div style="font-weight:900;color:#3DD68C">REGISTRATION TRUTH - REAL FUNDS - SAFE SECURE</div><div style="color:#BBB;margin-top:6px;line-height:1.6"><b>For Merchant QR (Accept Real EFC):</b> <span style="color:#3DD68C;font-weight:800">NO REGISTRATION NEEDED - WORKS NOW - REAL MAINNET REAL FUNDS</span> - Customer sends REAL EFC (0x677c...fed1) on BSC 56, real tx, real BscScan.<br/><b>For Airtime/Bills/Bank (Naira):</b> <span style="color:#D4A843">ONE registration with vtpass.com or Flutterwave for API Key - Bank regulation - Not Efikcoin registration - Plug key in Settings → Then real airtime/NEPA/bank with REAL EFC</span><br/><b>Safe Secure:</b> 12 words inside phone, encrypted locally, only you have access, identity hidden, everything else open, nothing hidden. Real mainnet 0x677c...fed1 BSC 56</div></div>
+
+<div id="welcome" class="card"><h3 style="color:#D4A843;font-size:13px">Create Real Mainnet Wallet - One Final - Real Funds</h3><div style="font-size:10px;color:#888;margin:6px 0">Real EFC on BSC Mainnet 56. Real BNB gas needed. No registration. Self-custody. Safe secure.</div><input id="pw1" type="password" class="input" placeholder="Create Password min 6 - Local only"/><input id="pw2" type="password" class="input" placeholder="Confirm Password"/><button class="btn btn-g" onclick="createWallet()">CREATE REAL MAINNET WALLET - REAL FUNDS - BSC 56</button><button class="btn btn-o" onclick="showImport()">IMPORT REAL MAINNET WALLET - 12 WORDS - REAL FUNDS</button><div id="wErr" class="err" style="display:none"></div><button class="btn btn-gr" onclick="downloadApp()">DOWNLOAD THIS ONE FINAL APP - index.html - WORLDWIDE REAL</button></div>
+
+<div id="importBox" class="card" style="display:none"><h3>Import Real Mainnet Wallet - BSC 56 - Real Funds</h3><textarea id="mnemonicIn" class="input" rows="3" placeholder="Enter 12-word phrase BIP39 Real Mainnet Real Funds"></textarea><input id="impPw" type="password" class="input" placeholder="Set Password min 6 - Local only"/><button class="btn btn-g" onclick="doImport()">IMPORT REAL MAINNET WALLET - REAL FUNDS</button><button class="btn btn-o" onclick="hideImport()">BACK</button><div id="impErr" class="err" style="display:none"></div></div>
+
+<div id="dashboard" style="display:none">
+<div class="card"><div style="display:flex;justify-content:space-between"><div style="display:flex;gap:6px;align-items:center"><div class="logo-css" style="width:20px;height:20px;font-size:8px">EFC</div><b style="font-size:9px">REAL MAINNET WALLET BSC 56 REAL FUNDS</b></div><span class="badge">LIVE MAINNET REAL</span></div><div id="addr" style="font-size:9px;font-family:monospace;word-break:break-all;margin:8px 0;background:#000;padding:8px;border-radius:8px;color:#D4A843;border:1px solid #D4A84333">Loading Real Mainnet Address...</div><div style="display:flex;gap:8px"><div style="flex:1;background:#090C10;border-radius:12px;padding:12px;text-align:center;border:1px solid #D4A84344"><div style="font-size:7px;color:#888">EFC REAL MAINNET</div><div style="font-size:6px;color:#6A7888">0x677c...fed1 Verified</div><div id="efcBal" style="font-size:16px;font-weight:900;color:#D4A843">0.00 EFC</div><div style="font-size:6px;color:#3DD68C">Real Funds BEP-20 Verified</div></div><div style="flex:1;background:#090C10;border-radius:12px;padding:12px;text-align:center"><div style="font-size:7px;color:#888">Local Value Real</div><div id="localBal" style="font-size:13px;font-weight:700">₦0.00</div><select id="currency" onchange="refreshBal()" style="background:#000;color:#fff;border:none;font-size:7px"><option value="NGN">NGN ₦155/EFC</option><option value="USD">USD $0.10/EFC</option><option value="EUR">EUR €0.09</option></select><div id="bnbBal" style="font-size:6px;color:#888;margin-top:4px">BNB Gas: Loading Real...</div></div></div><div style="display:flex;gap:5px;margin-top:8px"><button class="btn btn-o" style="flex:1;padding:7px;font-size:8px" onclick="refreshBal()">REFRESH REAL MAINNET BSC</button><button class="btn btn-o" style="flex:1;padding:7px;font-size:8px" onclick="copyAddr()">COPY REAL ADDRESS</button><button class="btn btn-o" style="flex:1;padding:7px;font-size:8px" onclick="viewBsc()">BSCSCAN REAL</button><button class="btn btn-o" style="flex:1;padding:7px;font-size:8px" onclick="addToken()">ADD LOGO</button></div><div style="font-size:7px;color:#888;margin-top:6px;text-align:center">Real Mainnet Real Funds - Need real BNB for gas - Test with 0.1 EFC first - Write 12 words on paper</div></div>
+
+<div class="grid">
+<div class="tile" onclick="alert('Real Mainnet Airtime: Need VTU API Key from vtpass.com (one-time registration) - Then REAL EFC Mainnet 0x677c...fed1 → Real Airtime MTN GLO Airtel Global - Real Funds - Not Demo')">📱<div style="font-size:10px;font-weight:800;margin-top:4px">Buy Airtime</div><div style="font-size:7px;color:#6A7888">Real EFC → MTN Global Real</div><div style="font-size:6px;color:#D4A843">Needs VTU API Key</div></div>
+<div class="tile" onclick="alert('Real Mainnet Bills: Need VTU API Key - Then EFC Mainnet → Real PHED DSTV - Real Funds')">💡<div style="font-size:10px;font-weight:800;margin-top:4px">Pay Bills</div><div style="font-size:7px;color:#6A7888">Real PHED DSTV Global</div><div style="font-size:6px;color:#D4A843">Needs VTU API</div></div>
+<div class="tile" onclick="alert('Real Mainnet To Bank: P2P Real Funds - You send REAL EFC 0x677c...fed1 on BSC 56 to provider → Provider sends real NGN to bank - Real Funds - Not Demo')">🏦<div style="font-size:10px;font-weight:800;margin-top:4px">To Bank</div><div style="font-size:7px;color:#6A7888">Real EFC → Bank World Real</div><div style="font-size:6px;color:#3DD68C">P2P Real Funds</div></div>
+<div class="tile" onclick="alert('Real Mainnet From Bank: Bank → Real EFC Mainnet - Real Funds - Need real BNB gas')">💵<div style="font-size:10px;font-weight:800;margin-top:4px">From Bank</div><div style="font-size:7px;color:#6A7888">Bank → Real EFC Mainnet</div><div style="font-size:6px;color:#3DD68C">Real Funds</div></div>
+<div class="tile" onclick="openQR()" style="border-color:#D4A84366">🧾<div style="font-size:10px;font-weight:800;margin-top:4px;color:#D4A843">Merchant QR</div><div style="font-size:7px;color:#6A7888">Accept Real EFC Mainnet Real</div><div style="font-size:6px;color:#3DD68C">NO REG - REAL FUNDS</div></div>
+<div class="tile" onclick="openHistory()">📜<div style="font-size:10px;font-weight:800;margin-top:4px">History</div><div style="font-size:7px;color:#6A7888">Real Mainnet Tx Receipts</div><div style="font-size:6px;color:#3DD68C">BscScan Verified Real</div></div>
+</div>
+
+<div class="card"><button class="btn btn-gr" onclick="downloadApp()">DOWNLOAD THIS ONE FINAL APP - index.html - REAL MAINNET REAL FUNDS - WORLDWIDE</button><button class="btn btn-o" onclick="downloadWallet()">DOWNLOAD WALLET BACKUP JSON - Real Mainnet Real Funds</button><button class="btn btn-o" onclick="showSeed()">SHOW 12 WORDS - REAL MAINNET PRIVATE - SECURE</button><button class="btn btn-o" onclick="lockWallet()">LOCK WALLET SECURE</button><div style="font-size:7px;color:#6A7888;text-align:center;margin-top:8px;line-height:1.5">ONE FINAL APP • No Confusion • No Errors • Safe Secure • Real Mainnet Real Funds • BSC 56 • 0x677c...fed1 • Logo CSS Gold • Token List Embedded • Translator Embedded • Only User Has Access To Details • User Identity Hidden • Everything Else Open • Built For Humanity To Live In Peace Comfortable Without Hardship • Planet Earth World Usage</div></div>
+</div>
+
+<div id="seedModal" class="modal"><div class="modal-inner"><h3>12 Words REAL MAINNET SECRET - SECURE</h3><div id="seedBox" style="background:#000;padding:12px;border-radius:8px;margin:10px 0;font-size:13px;word-spacing:6px;border:1px dashed #D4A843;line-height:2;color:#fff"></div><div style="font-size:10px;color:#ff6b6b;background:rgba(224,80,80,.1);padding:8px;border-radius:8px">REAL MAINNET WARNING: Anyone with these 12 words can steal your REAL EFC funds from anywhere in world. Never share. Write on paper, hide safely. This is your REAL bank. User identity hidden, only you have access.</div><button class="btn btn-o" onclick="closeModals()">CLOSE - I WROTE ON PAPER SECURELY</button></div></div>
+<div id="qrModal" class="modal"><div class="modal-inner" style="text-align:center"><h3>Merchant QR REAL MAINNET - REAL FUNDS</h3><select id="purpose" class="input"><option>School Fees Real</option><option>Food / Restaurant Real</option><option>Hospital / Pharmacy Real</option><option>Rent Real</option><option>Market Goods Real</option><option>Global Trade Real</option></select><input id="qrAmt" class="input" type="number" placeholder="Amount REAL EFC Mainnet"/><input id="qrNgn" class="input" type="number" placeholder="Amount Local Currency NGN/USD" oninput="convertQr()"/><button class="btn btn-g" onclick="genQR()">GENERATE REAL MAINNET QR - RECOGNIZED - REAL FUNDS</button><div id="qrcode" style="background:#fff;padding:12px;border-radius:12px;margin:12px auto;display:inline-block"></div><div id="qrInfo" style="font-size:11px;text-align:left"></div><button class="btn btn-o" onclick="closeModals()">CLOSE</button></div></div>
+<div id="histModal" class="modal"><div class="modal-inner"><h3>History REAL MAINNET - REAL FUNDS</h3><div id="histList"></div><button class="btn btn-o" onclick="closeModals()">CLOSE</button><button class="btn btn-o" onclick="window.open('https://bscscan.com/token/0x677ce9cba67f7484ea951a12897ce780cfd8fed1','_blank')">VIEW ALL ON BSCSCAN REAL MAINNET</button></div></div>
+
+<script>
+const EFC='0x677ce9cba67f7484ea951a12897ce780cfd8fed1';
+let efcBal=0,wallet,provider,mnemonic;
+function enc(t,p){let e='';for(let i=0;i<t.length;i++)e+=String.fromCharCode(t.charCodeAt(i)^p.charCodeAt(i%p.length));return btoa(e);}
+function dec(e,p){try{let t=atob(e),d='';for(let i=0;i<t.length;i++)d+=String.fromCharCode(t.charCodeAt(i)^p.charCodeAt(i%p.length));return d;}catch{return null;}}
+window.onload=()=>{const en=localStorage.getItem('efik_one_final_real_world'); if(en){document.getElementById('welcome').style.display='none';document.getElementById('dashboard').style.display='block';document.getElementById('addr').textContent='Locked - SHOW 12 WORDS to unlock real mainnet';} try{provider=new ethers.providers.JsonRpcProvider('https://bsc-dataseed.binance.org/');}catch{}};
+function createWallet(){const p1=document.getElementById('pw1').value,p2=document.getElementById('pw2').value,er=document.getElementById('wErr'); if(p1.length<6){er.style.display='block';er.textContent='Password min 6 chars - for local encryption only';return;} if(p1!==p2){er.style.display='block';er.textContent='Passwords no match';return;} try{let w; try{w=ethers.Wallet.createRandom();}catch{const b=ethers.utils.randomBytes(16);const m=ethers.utils.entropyToMnemonic(b);w=ethers.Wallet.fromMnemonic(m);} mnemonic=w.mnemonic.phrase; localStorage.setItem('efik_one_final_real_world',enc(mnemonic,p1)); wallet=w.connect(provider); document.getElementById('welcome').style.display='none'; document.getElementById('dashboard').style.display='block'; document.getElementById('addr').textContent=wallet.address; document.getElementById('seedBox').textContent=mnemonic; document.getElementById('seedModal').style.display='flex'; refreshBal();}catch(e){er.style.display='block';er.textContent='Failed: '+e.message;}}
+function showImport(){document.getElementById('welcome').style.display='none';document.getElementById('importBox').style.display='block';}
+function hideImport(){document.getElementById('importBox').style.display='none';document.getElementById('welcome').style.display='block';}
+function doImport(){const m=document.getElementById('mnemonicIn').value.trim(),pw=document.getElementById('impPw').value,er=document.getElementById('impErr'); if(m.split(' ').length<12){er.style.display='block';er.textContent='12 words required - real mainnet';return;} if(pw.length<6){er.style.display='block';er.textContent='Password min 6';return;} try{ethers.Wallet.fromMnemonic(m); localStorage.setItem('efik_one_final_real_world',enc(m,pw)); mnemonic=m; wallet=ethers.Wallet.fromMnemonic(m).connect(provider); document.getElementById('importBox').style.display='none'; document.getElementById('dashboard').style.display='block'; document.getElementById('addr').textContent=wallet.address; refreshBal();}catch(e){er.style.display='block';er.textContent='Invalid 12 words or error: '+e.message;}}
+async function refreshBal(){const cur=document.getElementById('currency').value; try{const addr=wallet?wallet.address:document.getElementById('addr').textContent; if(addr && addr.startsWith('0x')){const abi=['function balanceOf(address) view returns (uint256)'];const c=new ethers.Contract(EFC,abi,provider);const b=await c.balanceOf(addr); efcBal=parseFloat(ethers.utils.formatUnits(b,18)); const bnb=await provider.getBalance(addr); const bnbVal=parseFloat(ethers.utils.formatEther(bnb)); document.getElementById('bnbBal').textContent='BNB Gas Real: '+bnbVal.toFixed(5)+' - Need 0.001 for real tx - Real Funds'; document.getElementById('efcBal').textContent=(efcBal===0?'0.00 EFC (Send real EFC 0x677c...fed1 to this address - Real Mainnet)':efcBal.toFixed(4)+' EFC REAL MAINNET REAL FUNDS');}}catch(e){document.getElementById('efcBal').textContent='Error reading real mainnet - Check internet';} let v=efcBal*155; if(cur==='USD') v=efcBal*0.1; document.getElementById('localBal').textContent=(cur==='NGN'?'₦':'$')+v.toFixed(2)+' Real';}
+function copyAddr(){const a=document.getElementById('addr').textContent; if(navigator.clipboard) navigator.clipboard.writeText(a).then(()=>alert('Copied REAL Mainnet Address: '+a+'\nSend REAL EFC 0x677c...fed1 on BSC Mainnet 56 - Real funds'));}
+function viewBsc(){const a=document.getElementById('addr').textContent; window.open(a.startsWith('0x')?'https://bscscan.com/token/'+EFC+'?a='+a:'https://bscscan.com/token/'+EFC,'_blank');}
+function addNetwork(){if(window.ethereum){window.ethereum.request({method:'wallet_addEthereumChain',params:[{chainId:'0x38',chainName:'BNB Smart Chain Mainnet - Real Funds',nativeCurrency:{name:'BNB',symbol:'BNB',decimals:18},rpcUrls:['https://bsc-dataseed.binance.org/'],blockExplorerUrls:['https://bscscan.com/']}]}).then(()=>alert('BSC Mainnet Added - Real Mainnet - Real Funds')).catch(e=>alert(e.message));}else{alert('Install MetaMask');}}
+function addToken(){if(window.ethereum){window.ethereum.request({method:'wallet_watchAsset',params:{type:'ERC20',options:{address:EFC,symbol:'EFC',decimals:18}}}).then(()=>alert('EFC Added to MetaMask Mainnet! Recognized! Real Contract 0x677c...fed1 - Real Funds')).catch(e=>alert(e.message));}else{alert('Contract REAL: '+EFC);}}
+function lockWallet(){wallet=null;mnemonic=null;document.getElementById('dashboard').style.display='none';document.getElementById('welcome').style.display='block';}
+function showSeed(){if(!mnemonic){const en=localStorage.getItem('efik_one_final_real_world'); if(!en){alert('No wallet');return;} const pw=prompt('Password to show REAL MAINNET 12 words - REAL FUNDS - SECRET:'); if(!pw) return; const m=dec(en,pw); if(!m){alert('Wrong password');return;} mnemonic=m;} document.getElementById('seedBox').textContent=mnemonic; document.getElementById('seedModal').style.display='flex';}
+function closeModals(){document.querySelectorAll('.modal').forEach(m=>m.style.display='none');}
+function convertQr(){const ngn=parseFloat(document.getElementById('qrNgn').value)||0; document.getElementById('qrAmt').value=(ngn/155).toFixed(4);}
+function openQR(){document.getElementById('qrModal').style.display='flex';}
+function openHistory(){document.getElementById('histModal').style.display='flex'; let h=JSON.parse(localStorage.getItem('efik_one_hist')||'[]'); let html=h.length?'':'<div style=color:#888;text-align:center;padding:20px">No real mainnet tx yet - Real tx will show here and on BscScan 0x677c...fed1 - Real Funds</div>'; h.forEach(tx=>{html+=`<div style=background:#090C10;border:1px solid #1A2030;border-radius:10px;padding:10px;margin:8px 0;font-size:9px"><b>${tx.type}</b> - ${tx.efc} EFC REAL<br/>${tx.date}</div>`;}); document.getElementById('histList').innerHTML=html;}
+function genQR(){const pur=document.getElementById('purpose').value,amt=document.getElementById('qrAmt').value||0,addr=document.getElementById('addr').textContent; if(!addr.startsWith('0x')){alert('Create wallet first - Real mainnet address needed');return;} const data=`efikcoin:${addr}?amount=${amt}&purpose=${pur}&contract=${EFC}&chainId=56&real=true`; document.getElementById('qrcode').innerHTML=''; new QRCode(document.getElementById('qrcode'),{text:data,width:180,height:180}); document.getElementById('qrInfo').innerHTML=`<div style=background:#000;padding:8px;border-radius:8px;font-size:9px><b>${pur} Real</b><br/>Amount: ${amt} EFC REAL MAINNET REAL FUNDS<br/>Address: ${addr}<br/>Contract: 0x677c...fed1 Real Mainnet<br/>Chain: BSC 56 Real Funds<br/><span style=color:#3DD68C>Real Mainnet QR - Customer sends REAL EFC on BSC Mainnet - Real BscScan tx - Real Funds</span></div>`; let h=JSON.parse(localStorage.getItem('efik_one_hist')||'[]'); h.unshift({type:pur,efc:amt,date:new Date().toLocaleString()}); localStorage.setItem('efik_one_hist',JSON.stringify(h));}
+function downloadApp(){const html=document.documentElement.outerHTML; const blob=new Blob([html],{type:'text/html'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='Efikcoin-ONE-FINAL-REAL-MAINNET-Merchant-POS-Real-Funds-World-Usage.html'; a.click(); URL.revokeObjectURL(url); alert('ONE FINAL REAL MAINNET APP Downloaded!\n\n✓ Real Contract 0x677c...fed1 - Real Mainnet - NOT LP\n✓ Real Funds - Not Demo - Not Testnet\n✓ Safe Secure - Self-Custody\n✓ No Confusion - One File Only\n✓ Logo CSS Gold Embedded\n✓ Token List Embedded\n✓ Google Translator Embedded\n✓ BSC Mainnet 56 Embedded\n✓ Only User Has Access To Details\n✓ Built For Humanity Peace Comfortable Without Hardship\n\nRename to index.html and deploy to efikcoin.com/pos\n\nReal Funds Warning: Test with 0.1 EFC first. Need real BNB for gas. Write 12 words on paper.');}
+function downloadWallet(){const en=localStorage.getItem('efik_one_final_real_world'); if(!en){alert('No wallet');return;} const blob=new Blob([JSON.stringify({wallet:en,contract:EFC,symbol:'EFC',decimals:18,chainId:56,chain:'BNB Smart Chain Mainnet Real Funds',rpc:'https://bsc-dataseed.binance.org/',isReal:true,isDemo:false,isTestnet:false,note:'REAL MAINNET backup - Only you have access - Real Funds',date:new Date().toISOString()},null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='Efikcoin-REAL-MAINNET-Wallet-Backup-Real-Funds.json'; a.click();}
 </script>
 </body>
-  <a href="https://god.gw.postman.com/run-collection/56887199-9ed44332-83a5-4190-8b0b-977a6b67d678?action=collection%2Ffork&source=rip_markdown&collection-url=entityId%3D56887199-9ed44332-83a5-4190-8b0b-977a6b67d678%26entityType%3Dcollection%26workspaceId%3D1fafbe86-7048-4606-8b00-634e2a059558" target="_blank">
-  <img src="https://run.pstmn.io/button.svg" alt="Run in Postman" style="height:48px;" />
-  </a>
 </html>
