@@ -1,0 +1,11 @@
+[ User App / Merchant Dashboard ]
+              │
+  (Sends EFC or Fiat Payment)
+              │
+   ┌──────────┴──────────┐
+   ▼                     ▼
+[ Blockchain Node ]   [ Merchant Backend API ]
+ (Verifies EFC Tx)     │ ───► [ VTPass API ] ───► Airtime/Data/Electricity (Delivered)
+                       │ ───► [ Flutterwave API ] ───► Local Bank Account (Payout)
+                       │ ───► [ Virtual Account API ] ───► Receive Fiat Deposits
+
