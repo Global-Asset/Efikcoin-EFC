@@ -3,290 +3,300 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Efikcoin Merchant Hub</title>
+    <title>Efikcoin Merchant System</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Ethers.js for Web3 Integration -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
 </head>
-<body class="bg-slate-900 text-white min-h-screen pb-10">
+<body class="bg-slate-900 text-slate-100 min-h-screen pb-12 font-sans">
 
-    <!-- Header / Navbar -->
+    <!-- Header -->
     <header class="bg-slate-800 border-b border-slate-700 p-4 sticky top-0 z-50">
         <div class="max-w-md mx-auto flex justify-between items-center">
-            <h1 class="text-xl font-bold text-amber-500 tracking-wider">EFIKCOIN <span class="text-xs text-white bg-amber-600 px-2 py-0.5 rounded">PAY</span></h1>
-            <button id="connectBtn" onclick="connectWallet()" class="bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold px-3 py-2 rounded-lg transition">
+            <h1 class="text-xl font-bold text-amber-500 tracking-wider">EFIKCOIN <span class="text-xs bg-amber-600 text-white px-2 py-0.5 rounded">HUB</span></h1>
+            <button id="connectBtn" onclick="connectWallet()" class="bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold px-4 py-2 rounded-xl transition shadow">
                 Connect Wallet
             </button>
         </div>
     </header>
 
-    <main class="max-w-md mx-auto p-4 space-y-6">
+    <main class="max-w-md mx-auto p-4 space-y-5">
 
-        <!-- Wallet Status Card -->
-        <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-lg">
-            <p class="text-xs text-slate-400">Connected Wallet</p>
-            <p id="walletAddress" class="text-sm font-mono text-slate-200 truncate">Not Connected</p>
-            <div class="mt-3 flex justify-between items-center pt-2 border-t border-slate-700/50">
+        <!-- Status & Wallet Card -->
+        <div class="bg-slate-800 p-4 rounded-2xl border border-slate-700 shadow-md">
+            <div class="flex justify-between items-center mb-1">
+                <span class="text-xs text-slate-400">Account:</span>
+                <span id="walletAddress" class="text-xs font-mono text-amber-400">Not Connected</span>
+            </div>
+            <div class="flex justify-between items-center pt-2 border-t border-slate-700/50">
                 <span class="text-xs text-slate-400">EFC Balance:</span>
-                <span id="efcBalance" class="text-base font-bold text-amber-400">0.00 EFC</span>
+                <span id="efcBalance" class="text-base font-bold text-emerald-400">0.00 EFC</span>
             </div>
         </div>
 
         <!-- Navigation Tabs -->
-        <div class="grid grid-cols-3 gap-2 bg-slate-800 p-1 rounded-xl border border-slate-700">
-            <button onclick="switchTab('bills')" id="tab-bills" class="tab-btn py-2 text-xs font-bold rounded-lg bg-amber-500 text-slate-950">
-                Recharge & Bills
+        <div class="grid grid-cols-2 gap-2 bg-slate-800 p-1 rounded-xl border border-slate-700">
+            <button onclick="switchTab('bills')" id="tab-bills" class="py-2.5 text-xs font-bold rounded-lg bg-amber-500 text-slate-950 transition">
+                📱 Utilities & Bills
             </button>
-            <button onclick="switchTab('transfer')" id="tab-transfer" class="tab-btn py-2 text-xs font-bold rounded-lg text-slate-400 hover:text-white">
-                Bank Payout
-            </button>
-            <button onclick="switchTab('deposit')" id="tab-deposit" class="tab-btn py-2 text-xs font-bold rounded-lg text-slate-400 hover:text-white">
-                Receive Fiat
+            <button onclick="switchTab('transfer')" id="tab-transfer" class="py-2.5 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition">
+                🏛️ Bank Payout
             </button>
         </div>
 
-        <!-- SECTION 1: RECHARGE & UTILITIES -->
-        <section id="sec-bills" class="space-y-4">
-            <div class="bg-slate-800 p-5 rounded-2xl border border-slate-700">
-                <h2 class="text-lg font-bold mb-4 flex items-center gap-2">📱 Pay Utilities with EFC</h2>
-                
-                <div class="space-y-3">
-                    <div>
-                        <label class="text-xs text-slate-400">Service Category</label>
-                        <select id="billService" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-amber-500">
-                            <option value="airtime">Airtime / Phone Recharge</option>
-                            <option value="data">Data Bundle</option>
-                            <option value="electricity">Electricity Token (IKEDC/PHED)</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label class="text-xs text-slate-400">Network / Service Provider</label>
-                        <select id="billProvider" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-amber-500">
-                            <option value="mtn">MTN</option>
-                            <option value="airtel">Airtel</option>
-                            <option value="glo">Glo</option>
-                            <option value="9mobile">9mobile</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label class="text-xs text-slate-400">Phone Number / Meter Number</label>
-                        <input type="text" id="billTarget" placeholder="08012345678" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-amber-500">
-                    </div>
-
-                    <div>
-                        <label class="text-xs text-slate-400">Amount (Fiat / NGN)</label>
-                        <input type="number" id="billAmount" placeholder="1000" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-amber-500">
-                    </div>
-
-                    <button onclick="processBillPayment()" class="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold py-3 rounded-xl transition shadow-lg mt-2">
-                        Pay with EFC
-                    </button>
+        <!-- TAB 1: RECHARGE & BILLS -->
+        <section id="sec-bills" class="bg-slate-800 p-5 rounded-2xl border border-slate-700 shadow-lg space-y-4">
+            <h2 class="text-base font-bold text-amber-500">Pay Utilities with EFC</h2>
+            
+            <div class="space-y-3">
+                <div>
+                    <label class="text-xs text-slate-400">Service Category</label>
+                    <select id="billService" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm focus:outline-none focus:border-amber-500">
+                        <option value="airtime">Airtime Recharge</option>
+                        <option value="data">Data Bundle</option>
+                        <option value="electricity">Electricity Token</option>
+                    </select>
                 </div>
+
+                <div>
+                    <label class="text-xs text-slate-400">Network / Provider</label>
+                    <select id="billProvider" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm focus:outline-none focus:border-amber-500">
+                        <option value="mtn">MTN</option>
+                        <option value="airtel">Airtel</option>
+                        <option value="glo">Glo</option>
+                        <option value="9mobile">9mobile</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="text-xs text-slate-400">Phone or Meter Number</label>
+                    <input type="text" id="billTarget" placeholder="08012345678" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm focus:outline-none focus:border-amber-500">
+                </div>
+
+                <div>
+                    <label class="text-xs text-slate-400">Amount (Fiat / NGN)</label>
+                    <input type="number" id="billAmount" placeholder="1000" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm focus:outline-none focus:border-amber-500">
+                </div>
+
+                <button id="payBillBtn" onclick="processUtilityPayment()" class="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold py-3.5 rounded-xl transition shadow-lg mt-2">
+                    Confirm & Pay with EFC
+                </button>
             </div>
         </section>
 
-        <!-- SECTION 2: TRANSFER TO LOCAL BANK -->
-        <section id="sec-transfer" class="space-y-4 hidden">
-            <div class="bg-slate-800 p-5 rounded-2xl border border-slate-700">
-                <h2 class="text-lg font-bold mb-4 flex items-center gap-2">🏛️ Transfer EFC to Bank Account</h2>
-                
-                <div class="space-y-3">
-                    <div>
-                        <label class="text-xs text-slate-400">Select Bank</label>
-                        <select id="bankCode" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-amber-500">
-                            <option value="058">GTBank</option>
-                            <option value="011">First Bank</option>
-                            <option value="057">Zenith Bank</option>
-                            <option value="033">United Bank for Africa (UBA)</option>
-                            <option value="999992">OPay</option>
-                            <option value="999991">PalmPay</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label class="text-xs text-slate-400">Account Number</label>
-                        <input type="text" id="accountNumber" maxlength="10" placeholder="0123456789" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-amber-500">
-                    </div>
-
-                    <div>
-                        <label class="text-xs text-slate-400">Payout Amount (Fiat / NGN)</label>
-                        <input type="number" id="payoutAmount" placeholder="5000" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-amber-500">
-                    </div>
-
-                    <button onclick="processBankTransfer()" class="w-full bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold py-3 rounded-xl transition shadow-lg mt-2">
-                        Withdraw Funds to Bank
-                    </button>
+        <!-- TAB 2: BANK TRANSFER -->
+        <section id="sec-transfer" class="bg-slate-800 p-5 rounded-2xl border border-slate-700 shadow-lg space-y-4 hidden">
+            <h2 class="text-base font-bold text-emerald-400">Withdraw EFC to Bank Account</h2>
+            
+            <div class="space-y-3">
+                <div>
+                    <label class="text-xs text-slate-400">Destination Bank</label>
+                    <select id="bankCode" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm focus:outline-none focus:border-emerald-500">
+                        <option value="058">GTBank</option>
+                        <option value="011">First Bank</option>
+                        <option value="057">Zenith Bank</option>
+                        <option value="033">UBA</option>
+                        <option value="999992">OPay</option>
+                        <option value="999991">PalmPay</option>
+                    </select>
                 </div>
+
+                <div>
+                    <label class="text-xs text-slate-400">10-Digit Account Number</label>
+                    <input type="text" id="accountNumber" maxlength="10" placeholder="0123456789" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm focus:outline-none focus:border-emerald-500">
+                </div>
+
+                <div>
+                    <label class="text-xs text-slate-400">Payout Amount (Fiat / NGN)</label>
+                    <input type="number" id="payoutAmount" placeholder="5000" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm focus:outline-none focus:border-emerald-500">
+                </div>
+
+                <button id="payoutBtn" onclick="processBankWithdrawal()" class="w-full bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold py-3.5 rounded-xl transition shadow-lg mt-2">
+                    Execute Bank Transfer
+                </button>
             </div>
         </section>
 
-        <!-- SECTION 3: RECEIVE FIAT (VIRTUAL DEPOSIT ACCOUNT) -->
-        <section id="sec-deposit" class="space-y-4 hidden">
-            <div class="bg-slate-800 p-5 rounded-2xl border border-slate-700">
-                <h2 class="text-lg font-bold mb-4 flex items-center gap-2">💳 Generate Virtual Deposit Account</h2>
-                <p class="text-xs text-slate-400 mb-4">Deposit local currency (fiat) into this dedicated bank account to automatically receive EFC in your wallet.</p>
-                
-                <div class="space-y-3">
-                    <div>
-                        <label class="text-xs text-slate-400">Full Name</label>
-                        <input type="text" id="userName" placeholder="John Doe" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none">
-                    </div>
-                    <div>
-                        <label class="text-xs text-slate-400">Email Address</label>
-                        <input type="email" id="userEmail" placeholder="client@example.com" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none">
-                    </div>
-
-                    <button onclick="generateVirtualAccount()" class="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-3 rounded-xl transition shadow-lg mt-2">
-                        Create Dedicated Account
-                    </button>
-
-                    <!-- Account Details Output -->
-                    <div id="accountDisplay" class="hidden mt-4 bg-slate-900 p-4 rounded-xl border border-amber-500/30">
-                        <p class="text-xs text-amber-500 font-bold mb-2">Your Deposit Account details:</p>
-                        <p class="text-xs text-slate-400">Bank: <span id="outBankName" class="text-white font-bold">--</span></p>
-                        <p class="text-xs text-slate-400">Account Number: <span id="outAccountNo" class="text-amber-400 font-mono font-bold text-base">--</span></p>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Status Log Box -->
+        <!-- Dynamic Status Logger -->
         <div id="statusBox" class="hidden p-4 rounded-xl text-xs font-mono border"></div>
 
     </main>
 
-    <!-- Frontend Logic -->
     <script>
-        // Set Backend API endpoint
-        const API_URL = "http://localhost:5000/api/merchant";
-        let userAddress = null;
+        // CONFIGURATION PARAMETERS
+        const BACKEND_API = "http://localhost:5000/api/merchant";
+        const BSC_CHAIN_ID = "0x38"; // 56 in Hex
+        const EFC_CONTRACT = "0x7FAbe1cc407f0e01c3cdF5Cc05744f8D98bC70B6";
+        const TREASURY_ADDRESS = "0x9F8C29E496ECB6C39c221458f211234DfCB233E0";
 
-        // Switch Navigation Tabs
+        const ERC20_ABI = [
+            "function balanceOf(address owner) view returns (uint256)",
+            "function transfer(address to, uint256 amount) returns (bool)"
+        ];
+
+        let provider, signer, efcContract, userAddress;
+
         function switchTab(tab) {
-            ['bills', 'transfer', 'deposit'].forEach(t => {
+            ['bills', 'transfer'].forEach(t => {
                 document.getElementById(`sec-${t}`).classList.add('hidden');
-                document.getElementById(`tab-${t}`).className = "tab-btn py-2 text-xs font-bold rounded-lg text-slate-400 hover:text-white";
+                document.getElementById(`tab-${t}`).className = "py-2.5 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition";
             });
             document.getElementById(`sec-${tab}`).classList.remove('hidden');
-            document.getElementById(`tab-${tab}`).className = "tab-btn py-2 text-xs font-bold rounded-lg bg-amber-500 text-slate-950";
+            document.getElementById(`tab-${tab}`).className = `py-2.5 text-xs font-bold rounded-lg ${tab === 'bills' ? 'bg-amber-500 text-slate-950' : 'bg-emerald-500 text-slate-950'} transition`;
         }
 
-        // Web3 Wallet Connection
         async function connectWallet() {
-            if (window.ethereum) {
+            if (!window.ethereum) return alert("Please open inside MetaMask or Trust Wallet.");
+
+            try {
+                // Force network switch to BNB Smart Chain
                 try {
-                    const provider = new ethers.BrowserProvider(window.ethereum);
-                    const accounts = await provider.send("eth_requestAccounts", []);
-                    userAddress = accounts[0];
-                    document.getElementById('walletAddress').innerText = userAddress;
-                    document.getElementById('connectBtn').innerText = "Connected";
-                    showStatus("Wallet connected successfully!", "success");
-                } catch (err) {
-                    showStatus("Wallet connection rejected.", "error");
+                    await window.ethereum.request({
+                        method: 'wallet_switchEthereumChain',
+                        params: [{ chainId: BSC_CHAIN_ID }],
+                    });
+                } catch (switchError) {
+                    if (switchError.code === 4902) {
+                        await window.ethereum.request({
+                            method: 'wallet_addEthereumChain',
+                            params: [{
+                                chainId: BSC_CHAIN_ID,
+                                chainName: 'BNB Smart Chain',
+                                nativeCurrency: { name: 'BNB', symbol: 'BNB', decimals: 18 },
+                                rpcUrls: ['https://bsc-dataseed.binance.org/'],
+                                blockExplorerUrls: ['https://bscscan.com/']
+                            }],
+                        });
+                    }
                 }
-            } else {
-                alert("Please open this page in Trust Wallet, Metamask, or a Web3 browser.");
+
+                provider = new ethers.BrowserProvider(window.ethereum);
+                signer = await provider.getSigner();
+                userAddress = await signer.getAddress();
+
+                efcContract = new ethers.Contract(EFC_CONTRACT, ERC20_ABI, signer);
+
+                // Fetch real EFC balance
+                const balanceWei = await efcContract.balanceOf(userAddress);
+                const balanceEFC = ethers.formatUnits(balanceWei, 18);
+
+                document.getElementById('walletAddress').innerText = `${userAddress.substring(0, 6)}...${userAddress.substring(38)}`;
+                document.getElementById('efcBalance').innerText = `${parseFloat(balanceEFC).toFixed(2)} EFC`;
+                document.getElementById('connectBtn').innerText = "Connected";
+
+                showStatus("Connected to BSC & EFC Contract Mapped!", "success");
+
+            } catch (err) {
+                showStatus("Wallet Connection Failed: " + err.message, "error");
             }
         }
 
-        // Action 1: Pay Bill / Recharge Airtime
-        async function processBillPayment() {
-            const service = document.getElementById('billService').value;
+        async function processUtilityPayment() {
+            const btn = document.getElementById('payBillBtn');
             const target = document.getElementById('billTarget').value;
             const amount = document.getElementById('billAmount').value;
+            const provider = document.getElementById('billProvider').value;
+            const service = document.getElementById('billService').value;
 
-            if(!target || !amount) return alert("Please fill in target phone/meter and amount.");
+            if (!target || !amount) return alert("Please enter recipient and amount.");
+            if (!efcContract) return alert("Please connect your wallet first.");
 
-            showStatus("Processing EFC on-chain verification...", "info");
-            
-            // Mock transaction hash simulation for frontend test
-            const fakeTxHash = "0x" + Array.from({length: 64}, () => Math.floor(Math.random()*16).toString(16)).join('');
+            btn.disabled = true;
+            btn.innerText = "Processing Transaction...";
 
             try {
-                const res = await fetch(`${API_URL}/pay-bill`, {
+                showStatus("Step 1/2: Please confirm EFC transfer in your wallet...", "info");
+
+                // Execute transfer on BSC
+                const parsedAmount = ethers.parseUnits("10", 18); // 10 EFC fixed or calculate based on rate
+                const tx = await efcContract.transfer(TREASURY_ADDRESS, parsedAmount);
+
+                showStatus("Step 2/2: Transaction sent! Waiting for BSC block confirmation...", "info");
+                const receipt = await tx.wait(); // Ensures receipt.status == 1
+
+                showStatus("EFC Transfer Confirmed! Sending payload to merchant backend...", "info");
+
+                // Call Backend
+                const res = await fetch(`${BACKEND_API}/pay-bill`, {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        txHash: fakeTxHash,
-                        serviceID: service,
+                        txHash: receipt.hash,
+                        serviceID: provider,
                         phone: target,
                         amountFiat: amount
                     })
                 });
+
                 const data = await res.json();
-                showStatus(data.message || "Utility payment completed!", "success");
+                if (data.success) {
+                    showStatus("SUCCESS: " + data.message, "success");
+                } else {
+                    showStatus("Backend Error: " + data.message, "error");
+                }
+
             } catch (err) {
-                showStatus("Error processing payment endpoint.", "error");
+                showStatus("Transaction Stopped: " + (err.reason || err.message), "error");
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "Confirm & Pay with EFC";
             }
         }
 
-        // Action 2: Withdraw to Bank
-        async function processBankTransfer() {
+        async function processBankWithdrawal() {
+            const btn = document.getElementById('payoutBtn');
             const bank = document.getElementById('bankCode').value;
             const account = document.getElementById('accountNumber').value;
             const amount = document.getElementById('payoutAmount').value;
 
-            if(!account || !amount) return alert("Please provide bank details.");
+            if (!account || account.length !== 10 || !amount) return alert("Please enter valid account details.");
+            if (!efcContract) return alert("Please connect your wallet first.");
 
-            showStatus("Verifying EFC settlement for bank payout...", "info");
-
-            const fakeTxHash = "0x" + Array.from({length: 64}, () => Math.floor(Math.random()*16).toString(16)).join('');
+            btn.disabled = true;
+            btn.innerText = "Processing Withdrawal...";
 
             try {
-                const res = await fetch(`${API_URL}/withdraw-to-bank`, {
+                showStatus("Step 1/2: Confirm EFC payout authorization in wallet...", "info");
+
+                const parsedAmount = ethers.parseUnits("50", 18);
+                const tx = await efcContract.transfer(TREASURY_ADDRESS, parsedAmount);
+
+                showStatus("Step 2/2: Waiting for on-chain block confirmation...", "info");
+                const receipt = await tx.wait();
+
+                // Send to backend for Flutterwave payout
+                const res = await fetch(`${BACKEND_API}/withdraw-to-bank`, {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        txHash: fakeTxHash,
+                        txHash: receipt.hash,
                         bankCode: bank,
                         accountNumber: account,
                         amountFiat: amount
                     })
                 });
+
                 const data = await res.json();
-                showStatus(data.message || "Bank transfer triggered!", "success");
-            } catch (err) {
-                showStatus("Bank transfer server error.", "error");
-            }
-        }
-
-        // Action 3: Generate Deposit Account
-        async function generateVirtualAccount() {
-            const name = document.getElementById('userName').value;
-            const email = document.getElementById('userEmail').value;
-
-            if(!name || !email) return alert("Please enter name and email.");
-
-            showStatus("Creating permanent virtual bank account...", "info");
-
-            try {
-                const res = await fetch(`${API_URL}/create-deposit-account`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ userName: name, userEmail: email })
-                });
-                const data = await res.json();
-
-                if(data.success) {
-                    document.getElementById('outBankName').innerText = data.accountDetails?.bank_name || "Wema Bank";
-                    document.getElementById('outAccountNo').innerText = data.accountDetails?.account_number || "9928374102";
-                    document.getElementById('accountDisplay').classList.remove('hidden');
-                    showStatus("Virtual Account Ready!", "success");
+                if (data.success) {
+                    showStatus("SUCCESS: " + data.message, "success");
+                } else {
+                    showStatus("Payout Error: " + data.message, "error");
                 }
+
             } catch (err) {
-                showStatus("Error generating account.", "error");
+                showStatus("Payout Stopped: " + (err.reason || err.message), "error");
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "Execute Bank Transfer";
             }
         }
 
         function showStatus(msg, type) {
             const box = document.getElementById('statusBox');
-            box.classList.remove('hidden', 'bg-emerald-900/50', 'border-emerald-500', 'bg-rose-900/50', 'border-rose-500', 'bg-blue-900/50', 'border-blue-500');
+            box.classList.remove('hidden', 'bg-emerald-900/50', 'border-emerald-500', 'text-emerald-200', 'bg-rose-900/50', 'border-rose-500', 'text-rose-200', 'bg-blue-900/50', 'border-blue-500', 'text-blue-200');
             box.innerText = msg;
 
-            if(type === 'success') box.classList.add('bg-emerald-900/50', 'border-emerald-500', 'text-emerald-200');
-            else if(type === 'error') box.classList.add('bg-rose-900/50', 'border-rose-500', 'text-rose-200');
+            if (type === 'success') box.classList.add('bg-emerald-900/50', 'border-emerald-500', 'text-emerald-200');
+            else if (type === 'error') box.classList.add('bg-rose-900/50', 'border-rose-500', 'text-rose-200');
             else box.classList.add('bg-blue-900/50', 'border-blue-500', 'text-blue-200');
         }
     </script>
