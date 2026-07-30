@@ -144,8 +144,9 @@ app.listen(PORT, () => console.log(`Efikcoin Merchant Engine running securely on
 
           // Keep all your routes, VTPass, Flutterwave, and Ethers code above this!
 
-// Replace ONLY the app.listen part at the very bottom with this:
 const PORT = process.env.PORT || 10000;
+
+// MUST bind to '0.0.0.0' for Render
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Efikcoin Merchant Backend running on port ${PORT}`);
 });
