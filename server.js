@@ -141,4 +141,11 @@ app.get('/health', (req, res) => res.json({ status: "ONLINE", timestamp: new Dat
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Efikcoin Merchant Engine running securely on port ${PORT}`));
-          
+
+          // Keep all your routes, VTPass, Flutterwave, and Ethers code above this!
+
+// Replace ONLY the app.listen part at the very bottom with this:
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Efikcoin Merchant Backend running on port ${PORT}`);
+});
