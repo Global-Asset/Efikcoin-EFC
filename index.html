@@ -74,7 +74,8 @@
 
                 <div>
                     <label class="text-xs text-slate-400">Amount (Fiat / NGN)</label>
-                    <input type="number" id="billAmount" placeholder="1000" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm focus:outline-none focus:border-amber-500">
+                    <input type="number" id="billAmount" placeholder="1000" oninput="updateEfcEstimate('bill')" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm focus:outline-none focus:border-amber-500">
+                    <p id="billEfcCalc" class="text-[11px] text-amber-400/80 mt-1 hidden">Estimated Cost: <span id="billEfcVal">0</span> EFC</p>
                 </div>
 
                 <button id="payBillBtn" onclick="processUtilityPayment()" class="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold py-3.5 rounded-xl transition shadow-lg mt-2">
@@ -107,7 +108,8 @@
 
                 <div>
                     <label class="text-xs text-slate-400">Payout Amount (Fiat / NGN)</label>
-                    <input type="number" id="payoutAmount" placeholder="5000" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm focus:outline-none focus:border-emerald-500">
+                    <input type="number" id="payoutAmount" placeholder="5000" oninput="updateEfcEstimate('payout')" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm focus:outline-none focus:border-emerald-500">
+                    <p id="payoutEfcCalc" class="text-[11px] text-emerald-400/80 mt-1 hidden">Estimated Cost: <span id="payoutEfcVal">0</span> EFC</p>
                 </div>
 
                 <button id="payoutBtn" onclick="processBankWithdrawal()" class="w-full bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold py-3.5 rounded-xl transition shadow-lg mt-2">
@@ -123,17 +125,21 @@
 
     <script>
         // CONFIGURATION PARAMETERS
-        const BACKEND_API = "http://localhost:5000/api/merchant";
+        const BACKEND_API = "https://efcpay.efikcoin.xyz/api/merchant"; // Your backend host endpoint
         const BSC_CHAIN_ID = "0x38"; // 56 in Hex
         const EFC_CONTRACT = "0x7FAbe1cc407f0e01c3cdF5Cc05744f8D98bC70B6";
         const TREASURY_ADDRESS = "0x9F8C29E496ECB6C39c221458f211234DfCB233E0";
+
+        // EXCHANGE RATE: How many NGN is 1 EFC worth?
+        // E.g., If 1 EFC = 10,000 NGN, then 1000 NGN airtime costs 0.1 EFC.
+        const NGN_PER_EFC = 10000; 
 
         const ERC20_ABI = [
             "function balanceOf(address owner) view returns (uint256)",
             "function transfer(address to, uint256 amount) returns (bool)"
         ];
 
-        let provider, signer, efcContract, userAddress;
+        let provider, signer, efcContract, userAddress, userRawBalance = 0;
 
         function switchTab(tab) {
             ['bills', 'transfer'].forEach(t => {
@@ -144,11 +150,25 @@
             document.getElementById(`tab-${tab}`).className = `py-2.5 text-xs font-bold rounded-lg ${tab === 'bills' ? 'bg-amber-500 text-slate-950' : 'bg-emerald-500 text-slate-950'} transition`;
         }
 
+        function updateEfcEstimate(type) {
+            const amountInput = document.getElementById(type === 'bill' ? 'billAmount' : 'payoutAmount').value;
+            const calcBox = document.getElementById(type === 'bill' ? 'billEfcCalc' : 'payoutEfcCalc');
+            const valSpan = document.getElementById(type === 'bill' ? 'billEfcVal' : 'payoutEfcVal');
+
+            if (amountInput && parseFloat(amountInput) > 0) {
+                const calculatedEFC = (parseFloat(amountInput) / NGN_PER_EFC).toFixed(4);
+                valSpan.innerText = calculatedEFC;
+                calcBox.classList.remove('hidden');
+            } else {
+                calcBox.classList.add('hidden');
+            }
+        }
+
         async function connectWallet() {
-            if (!window.ethereum) return alert("Please open inside MetaMask or Trust Wallet.");
+            if (!window.ethereum) return alert("Please open inside Trust Wallet or MetaMask browser.");
 
             try {
-                // Force network switch to BNB Smart Chain
+                // Network Switch Logic
                 try {
                     await window.ethereum.request({
                         method: 'wallet_switchEthereumChain',
@@ -175,55 +195,64 @@
 
                 efcContract = new ethers.Contract(EFC_CONTRACT, ERC20_ABI, signer);
 
-                // Fetch real EFC balance
+                // Fetch live EFC balance from BSC
                 const balanceWei = await efcContract.balanceOf(userAddress);
                 const balanceEFC = ethers.formatUnits(balanceWei, 18);
+                userRawBalance = parseFloat(balanceEFC);
 
-                document.getElementById('walletAddress').innerText = `${userAddress.substring(0, 6)}...${userAddress.substring(38)}`;
-                document.getElementById('efcBalance').innerText = `${parseFloat(balanceEFC).toFixed(2)} EFC`;
+                document.getElementById('walletAddress').innerText = `${userAddress.substring(0, 6)}...${userAddress.substring(userAddress.length - 4)}`;
+                document.getElementById('efcBalance').innerText = `${userRawBalance.toFixed(4)} EFC`;
                 document.getElementById('connectBtn').innerText = "Connected";
 
-                showStatus("Connected to BSC & EFC Contract Mapped!", "success");
+                showStatus("Connected to BSC & EFC Token Contract!", "success");
 
             } catch (err) {
-                showStatus("Wallet Connection Failed: " + err.message, "error");
+                showStatus("Wallet Connection Error: " + err.message, "error");
             }
         }
 
         async function processUtilityPayment() {
             const btn = document.getElementById('payBillBtn');
             const target = document.getElementById('billTarget').value;
-            const amount = document.getElementById('billAmount').value;
-            const provider = document.getElementById('billProvider').value;
+            const amountFiat = parseFloat(document.getElementById('billAmount').value);
+            const providerName = document.getElementById('billProvider').value;
             const service = document.getElementById('billService').value;
 
-            if (!target || !amount) return alert("Please enter recipient and amount.");
+            if (!target || !amountFiat || amountFiat <= 0) return alert("Please enter a valid recipient number and amount.");
             if (!efcContract) return alert("Please connect your wallet first.");
 
+            // Calculate required EFC tokens
+            const requiredEFC = amountFiat / NGN_PER_EFC;
+
+            // UNDERFLOW GUARD: Check balance before calling smart contract
+            if (userRawBalance < requiredEFC) {
+                showStatus(`Insufficient EFC Balance! Required: ${requiredEFC.toFixed(4)} EFC, Your Balance: ${userRawBalance.toFixed(4)} EFC.`, "error");
+                return;
+            }
+
             btn.disabled = true;
-            btn.innerText = "Processing Transaction...";
+            btn.innerText = "Processing...";
 
             try {
-                showStatus("Step 1/2: Please confirm EFC transfer in your wallet...", "info");
+                showStatus(`Step 1/2: Please confirm transfer of ${requiredEFC.toFixed(4)} EFC in your wallet...`, "info");
 
-                // Execute transfer on BSC
-                const parsedAmount = ethers.parseUnits("10", 18); // 10 EFC fixed or calculate based on rate
+                const parsedAmount = ethers.parseUnits(requiredEFC.toString(), 18);
                 const tx = await efcContract.transfer(TREASURY_ADDRESS, parsedAmount);
 
-                showStatus("Step 2/2: Transaction sent! Waiting for BSC block confirmation...", "info");
-                const receipt = await tx.wait(); // Ensures receipt.status == 1
+                showStatus("Step 2/2: Transaction sent! Awaiting block confirmation on BSC...", "info");
+                const receipt = await tx.wait();
 
-                showStatus("EFC Transfer Confirmed! Sending payload to merchant backend...", "info");
+                showStatus("EFC Transfer Confirmed! Delivering service via Merchant Engine...", "info");
 
-                // Call Backend
+                // Send payload to backend API
                 const res = await fetch(`${BACKEND_API}/pay-bill`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         txHash: receipt.hash,
-                        serviceID: provider,
+                        serviceID: providerName,
                         phone: target,
-                        amountFiat: amount
+                        amountFiat: amountFiat
                     })
                 });
 
@@ -246,24 +275,31 @@
             const btn = document.getElementById('payoutBtn');
             const bank = document.getElementById('bankCode').value;
             const account = document.getElementById('accountNumber').value;
-            const amount = document.getElementById('payoutAmount').value;
+            const amountFiat = parseFloat(document.getElementById('payoutAmount').value);
 
-            if (!account || account.length !== 10 || !amount) return alert("Please enter valid account details.");
+            if (!account || account.length !== 10 || !amountFiat || amountFiat <= 0) return alert("Please enter valid bank account details and amount.");
             if (!efcContract) return alert("Please connect your wallet first.");
+
+            const requiredEFC = amountFiat / NGN_PER_EFC;
+
+            // UNDERFLOW GUARD
+            if (userRawBalance < requiredEFC) {
+                showStatus(`Insufficient EFC Balance! Required: ${requiredEFC.toFixed(4)} EFC, Your Balance: ${userRawBalance.toFixed(4)} EFC.`, "error");
+                return;
+            }
 
             btn.disabled = true;
             btn.innerText = "Processing Withdrawal...";
 
             try {
-                showStatus("Step 1/2: Confirm EFC payout authorization in wallet...", "info");
+                showStatus(`Step 1/2: Confirm transfer of ${requiredEFC.toFixed(4)} EFC in wallet...`, "info");
 
-                const parsedAmount = ethers.parseUnits("50", 18);
+                const parsedAmount = ethers.parseUnits(requiredEFC.toString(), 18);
                 const tx = await efcContract.transfer(TREASURY_ADDRESS, parsedAmount);
 
-                showStatus("Step 2/2: Waiting for on-chain block confirmation...", "info");
+                showStatus("Step 2/2: Waiting for BSC block settlement...", "info");
                 const receipt = await tx.wait();
 
-                // Send to backend for Flutterwave payout
                 const res = await fetch(`${BACKEND_API}/withdraw-to-bank`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -271,7 +307,7 @@
                         txHash: receipt.hash,
                         bankCode: bank,
                         accountNumber: account,
-                        amountFiat: amount
+                        amountFiat: amountFiat
                     })
                 });
 
