@@ -1,11 +1,18 @@
-[ User App / Merchant Dashboard ]
-              │
-  (Sends EFC or Fiat Payment)
-              │
-   ┌──────────┴──────────┐
-   ▼                     ▼
-[ Blockchain Node ]   [ Merchant Backend API ]
- (Verifies EFC Tx)     │ ───► [ VTPass API ] ───► Airtime/Data/Electricity (Delivered)
-                       │ ───► [ Flutterwave API ] ───► Local Bank Account (Payout)
-                       │ ───► [ Virtual Account API ] ───► Receive Fiat Deposits
-
+[ Web3 Client Interface ]
+          │
+  1. Switch Network to BSC (0x38)
+  2. Verify EFC Balance > Required Amount
+  3. Send On-Chain Transfer (Lock UI Button)
+          │
+  [ BSC Blockchain Mainnet ]
+          │ (Tx Receipt Confirmed)
+          ▼
+  [ Production Express Backend Server ]
+          │
+  4. Verify Tx Receipt On-Chain (Status == 1)
+  5. Check Tx Hash Uniqueness (Prevent Double-Spend)
+          │
+  ┌───────┴────────┐
+  ▼                ▼
+[ VTPass API ]   [ Flutterwave API ]
+(Utilities)       (Bank Payouts)
