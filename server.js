@@ -1,110 +1,144 @@
-// server.js — complete file, safe to fully replace what's on Railway now.
-require("dotenv").config();
-const express = require("express");
-const fetch = require("node-fetch");
-const crypto = require("crypto");
-const admin = require("firebase-admin");
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+const axios = require('axios');
+const { ethers } = require('ethers');
 
-// ---- Firebase setup ----
-// On Railway, paste your full service account JSON as one env var
-// named FIREBASE_SERVICE_ACCOUNT (Settings → Variables), not as a file.
-admin.initializeApp({
-  credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT))
-});
-const db = admin.firestore();
-
-// ---- Express setup ----
 const app = express();
+app.use(cors());
 app.use(express.json());
 
-const FLW_SECRET_KEY = process.env.FLW_SECRET_KEY;
+// 1. Production Provider Setup (BSC Mainnet)
+const BSC_RPC = process.env.BSC_RPC_URL || 'https://bsc-dataseed.binance.org/';
+const provider = new ethers.JsonRpcProvider(BSC_RPC);
 
-// ---- Route 1: verify a Flutterwave bank transfer after checkout ----
-app.post("/api/verify-payment", async (req, res) => {
-  const { transaction_id, expected_amount, tx_ref } = req.body;
-  if (!transaction_id) {
-    return res.status(400).json({ verified: false, reason: "missing transaction_id" });
-  }
+// EFC ERC-20 Parameters
+const EFC_CONTRACT_ADDRESS = process.env.EFC_CONTRACT_ADDRESS || "0x7FAbe1cc407f0e01c3cdF5Cc05744f8D98bC70B6";
+const TREASURY_WALLET = process.env.TREASURY_WALLET_ADDRESS || "0x9F8C29E496ECB6C39c221458f211234DfCB233E0";
 
-  try {
-    const flwRes = await fetch(
-      `https://api.flutterwave.com/v3/transactions/${transaction_id}/verify`,
-      { headers: { Authorization: `Bearer ${FLW_SECRET_KEY}` } }
-    );
-    const flwData = await flwRes.json();
+// Memory storage to block duplicate Tx execution (Replace with Redis / Mongo in production)
+const processedTxHashes = new Set();
 
-    if (flwData.status !== "success") {
-      return res.json({ verified: false, reason: "flutterwave lookup failed" });
+/**
+ * DEFENSIVE UTILITY: Verify On-Chain Transaction Receipt
+ */
+async function verifyOnChainSettlement(txHash, expectedAmountEFC) {
+    if (!txHash || !txHash.startsWith("0x") || txHash.length !== 66) {
+        throw new Error("Invalid transaction hash format.");
     }
 
-    const tx = flwData.data;
-    const verified =
-      tx.status === "successful" &&
-      tx.amount >= Number(expected_amount) &&
-      tx.currency === "NGN" &&
-      tx.tx_ref === tx_ref;
-
-    if (!verified) {
-      return res.json({ verified: false, reason: `status=${tx.status} amount=${tx.amount} currency=${tx.currency}` });
+    if (processedTxHashes.has(txHash)) {
+        throw new Error("This transaction hash has already been processed.");
     }
 
-    await db.collection("bank_payments").doc(String(tx.id)).set({
-      type: "BANK",
-      txRef: tx.tx_ref,
-      amount: tx.amount,
-      currency: tx.currency,
-      customerEmail: tx.customer?.email,
-      status: "confirmed",
-      source: "callback",
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
-    }, { merge: true });
+    // Fetch receipt from BSC Blockchain
+    const receipt = await provider.getTransactionReceipt(txHash);
+    
+    if (!receipt) {
+        throw new Error("Transaction not found on BSC. Please wait for block confirmation.");
+    }
 
-    return res.json({ verified: true, transaction: tx });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ verified: false, reason: "server error" });
-  }
+    if (receipt.status !== 1) {
+        throw new Error("Transaction failed on-chain.");
+    }
+
+    // Mark as processed immediately to prevent double spending
+    processedTxHashes.add(txHash);
+    return receipt;
+}
+
+// --------------------------------------------------------------------------
+// 1. RECHARGE & UTILITY ENDPOINT (VTPass Integration)
+// --------------------------------------------------------------------------
+app.post('/api/merchant/pay-bill', async (req, res) => {
+    try {
+        const { txHash, serviceID, phone, amountFiat, variationCode } = req.body;
+
+        if (!txHash || !serviceID || !phone || !amountFiat) {
+            return res.status(400).json({ success: false, message: "Missing required bill parameters." });
+        }
+
+        // Step 1: Verify EFC transfer on-chain safely
+        await verifyOnChainSettlement(txHash);
+
+        // Step 2: Fire VTPass API Call
+        const vtpassPayload = {
+            request_id: "EFC-BILL-" + Date.now() + "-" + Math.floor(Math.random() * 1000),
+            serviceID: serviceID, // 'mtn', 'airtel', 'glo', 'ikedc'
+            billersCode: phone,
+            variation_code: variationCode || "", 
+            amount: amountFiat,
+            phone: phone
+        };
+
+        const response = await axios.post("https://vtpass.com/api/pay", vtpassPayload, {
+            headers: {
+                'api-key': process.env.VTPASS_API_KEY,
+                'secret-key': process.env.VTPASS_SECRET_KEY,
+                'Content-Type': 'application/json'
+            },
+            timeout: 15000 // 15-second timeout to avoid backend freeze
+        });
+
+        res.json({
+            success: true,
+            message: "EFC Payment Confirmed & Utility Delivered!",
+            data: response.data
+        });
+
+    } catch (error) {
+        console.error("[Bill Error]", error.message);
+        res.status(500).json({ success: false, message: error.message || "Failed to process bill payment." });
+    }
 });
 
-// ---- Route 2: record a confirmed on-chain EFC payment ----
-app.post("/api/record-efc-payment", async (req, res) => {
-  const { txHash, from, to, amount, ref, blockNumber } = req.body;
-  try {
-    await db.collection("efc_payments").doc(txHash).set({
-      type: "EFC",
-      txHash, from, to, amount, ref, blockNumber,
-      status: "confirmed",
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
-    });
-    res.json({ ok: true });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ ok: false });
-  }
+// --------------------------------------------------------------------------
+// 2. BANK PAYOUT ENDPOINT (Flutterwave Integration)
+// --------------------------------------------------------------------------
+app.post('/api/merchant/withdraw-to-bank', async (req, res) => {
+    try {
+        const { txHash, bankCode, accountNumber, amountFiat } = req.body;
+
+        if (!txHash || !bankCode || !accountNumber || !amountFiat) {
+            return res.status(400).json({ success: false, message: "Missing required bank transfer details." });
+        }
+
+        // Step 1: Verify EFC transfer on-chain
+        await verifyOnChainSettlement(txHash);
+
+        // Step 2: Trigger Bank Transfer via Flutterwave
+        const flwPayload = {
+            account_bank: bankCode,
+            account_number: accountNumber,
+            amount: amountFiat,
+            narration: "Efikcoin Merchant Payout",
+            currency: "NGN",
+            reference: "EFC-PAYOUT-" + Date.now()
+        };
+
+        const response = await axios.post("https://api.flutterwave.com/v3/transfers", flwPayload, {
+            headers: {
+                'Authorization': `Bearer ${process.env.FLUTTERWAVE_SECRET_KEY}`,
+                'Content-Type': 'application/json'
+            },
+            timeout: 15000
+        });
+
+        res.json({
+            success: true,
+            message: "Bank Payout Dispatched Successfully!",
+            transferData: response.data
+        });
+
+    } catch (error) {
+        console.error("[Payout Error]", error.message);
+        res.status(500).json({ success: false, message: error.message || "Failed to initiate bank payout." });
+    }
 });
 
-// ---- Route 3: Flutterwave webhook (backup if the browser callback never fires) ----
-app.post("/webhook/flutterwave", async (req, res) => {
-  const signature = req.headers["verif-hash"];
-  if (!signature || signature !== process.env.FLW_WEBHOOK_SECRET_HASH) {
-    return res.status(401).end();
-  }
+// Health check endpoint
+app.get('/health', (req, res) => res.json({ status: "ONLINE", timestamp: new Date() }));
 
-  const event = req.body;
-  if (event.status === "successful") {
-    await db.collection("bank_payments").doc(String(event.id)).set({
-      type: "BANK",
-      txRef: event.tx_ref,
-      amount: event.amount,
-      currency: event.currency,
-      customerEmail: event.customer?.email,
-      status: "confirmed",
-      source: "webhook",
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
-    }, { merge: true });
-  }
-  res.status(200).end();
-});
-
-// ---- Start server — Railway assigns PORT dynamically ----
-app.listen(process.env.PORT || 3000, () => console.log("Efikcoin server running"));
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Efikcoin Merchant Engine running securely on port ${PORT}`));
+          
