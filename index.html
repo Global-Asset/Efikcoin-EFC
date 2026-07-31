@@ -54,7 +54,7 @@
         <button class="btn-action" onclick="verifyPin()">Unlock EFC Wallet</button>
     </div>
 
-    <!-- INITIAL SETUP -->
+    <!-- INITIAL SETUP -->1
     <div id="setupScreen" class="card" style="display:none; text-align:center;">
         <h2>Initialize EFC Wallet</h2>
         <p style="font-size:13px; color:var(--text-secondary);">Set up your self-custodial account on BNB Smart Chain.</p>
@@ -427,6 +427,59 @@ async function claimStakingRewards() {
     }
 }
 
+    async function executeBankPayout() {
+    // 1. Get user inputs
+    const rawBankCode = document.getElementById("payoutBankCode").value.trim();
+    const accNum = document.getElementById("payoutAccNum").value.trim();
+    const amount = document.getElementById("payoutAmount").value.trim();
+
+    // 2. Clean inputs (extract numbers only)
+    const bankCode = rawBankCode.replace(/\D/g, '');
+
+    // 3. Validate form entries
+    if (!bankCode || bankCode.length < 3) {
+        return alert("Invalid Bank Code! Enter a numeric code (e.g., 058 for GTBank, 033 for UBA, 057 for Zenith).");
+    }
+    if (!accNum || accNum.length < 10) {
+        return alert("Please enter a valid 10-digit Account Number.");
+    }
+    if (!amount || parseFloat(amount) <= 0) {
+        return alert("Please enter a valid transfer amount.");
+    }
+
+    // 4. User feedback
+    alert(`Initiating transfer via Render backend...\nBank Code: ${bankCode}\nAccount: ${accNum}\nAmount: ₦${amount}`);
+
+    try {
+        // 5. Send POST request to live Render backend
+        const response = await fetch(`${BACKEND_URL}/api/merchant/payout-bank`, {
+            method: "POST",
+            headers: { 
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            },
+            body: JSON.stringify({
+                accountBank: bankCode,
+                accountNumber: accNum,
+                amount: amount,
+                walletAddress: typeof userWallet !== 'undefined' && userWallet ? userWallet.address : "0x0000000000000000000000000000000000000000",
+                narration: "EFC Merchant Settlement"
+            })
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+            alert("✅ Transfer Successful!\nReference: " + (result.data.reference || result.data.id));
+        } else {
+            alert("❌ Transfer Failed: " + (result.error || result.message || JSON.stringify(result)));
+        }
+    } catch (e) {
+        console.error("Payout error:", e);
+        alert("⚠️ Backend Connection Error: " + e.message + "\n\nMake sure your Render backend service is awake!");
+    }
+    }
+    
 function switchTab(t) {
     const tabs = ["transfer", "bankDeposit", "pay", "bankPayout", "stake"];
     tabs.forEach(tab => document.getElementById(tab + "Tab").style.display = tab === t ? "block" : "none");
