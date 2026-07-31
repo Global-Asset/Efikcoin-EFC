@@ -1,21 +1,20 @@
 {
-  "name": "EFC Pay - Global POS",
-  "short_name": "EFCPay",
+  "name": "EFC Pay Merchant",
+  "short_name": "EFC Pay",
   "start_url": "/index.html",
   "display": "standalone",
-  "background_color": "#0d1117",
-  "theme_color": "#f39c12",
+  "background_color": "#0a0e17",
+  "theme_color": "#f59e0b",
   "icons": [
     {
-      "src": "https://efcpay.efikcoin.xyz/icon-192.png",
+      "src": "https://ipfs.io/ipfs/bafybeihrzyodihyp5met2hs32ppj37qlowuxarvs2lnlrgujgrlwxc7fwe",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "https://efcpay.efikcoin.xyz/icon-512.png",
+      "src": "https://ipfs.io/ipfs/bafybeihrzyodihyp5met2hs32ppj37qlowuxarvs2lnlrgujgrlwxc7fwe",
       "sizes": "512x512",
       "type": "image/png"
     }
   ]
 }
-
