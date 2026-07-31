@@ -1,154 +1,120 @@
-try {
-    require('dotenv').config();
-} catch (e) {
-    console.log("Running without local .env file");
-}
-
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const { ethers } = require('ethers');
 
 const app = express();
-
 app.use(cors());
 app.use(express.json());
 
-const BSC_RPC = process.env.BSC_RPC_URL || 'https://bsc-dataseed.binance.org/';
-const provider = new ethers.JsonRpcProvider(BSC_RPC);
-const processedTxHashes = new Set();
+// ==================== ENVIRONMENT CONFIGURATION ====================
+const PORT = process.env.PORT || 3000;
+const FLW_SECRET_KEY = process.env.FLW_SECRET_KEY; // Live secret key from Flutterwave Dashboard
+const FLW_SECRET_HASH = process.env.FLW_SECRET_HASH; // Webhook Secret Hash from Flutterwave Settings
+const BSC_RPC_URL = process.env.BSC_RPC_URL || "https://bsc-dataseed.binance.org/";
+const OPERATOR_PRIVATE_KEY = process.env.OPERATOR_PRIVATE_KEY; // Treasury/Relayer wallet private key
 
-// Environment Variables Check
-const FLW_SECRET = process.env.FLUTTERWAVE_SECRET_KEY || '';
-const FLW_CLIENT_ID = process.env.FLW_CLIENT_ID || '';
-const FLW_ENCRYPTION_KEY = process.env.FLW_ENCRYPTION_KEY || '';
+// Contract & Addresses
+const EFC_CONTRACT_ADDRESS = "0x677ce9cba67f7484ea951a12897ce780cfd8fed1";
+const EFC_ABI = [
+    "function balanceOf(address account) view returns (uint256)",
+    "function transfer(address recipient, uint256 amount) returns (bool)",
+    "function decimals() view returns (uint8)"
+];
 
-function generateVTpassRequestId() {
-    const now = new Date();
-    const lagosOffset = 1 * 60;
-    const localTime = new Date(now.getTime() + (lagosOffset + now.getTimezoneOffset()) * 60000);
+// Web3 Initialization
+const provider = new ethers.providers.JsonRpcProvider(BSC_RPC_URL);
+const relayerWallet = new ethers.Wallet(OPERATOR_PRIVATE_KEY, provider);
+const efcContract = new ethers.Contract(EFC_CONTRACT_ADDRESS, EFC_ABI, relayerWallet);
 
-    const year = localTime.getFullYear();
-    const month = String(localTime.getMonth() + 1).padStart(2, '0');
-    const day = String(localTime.getDate()).padStart(2, '0');
-    const hours = String(localTime.getHours()).padStart(2, '0');
-    const minutes = String(localTime.getMinutes()).padStart(2, '0');
-
-    const datePrefix = `${year}${month}${day}${hours}${minutes}`;
-    const randomSuffix = Math.random().toString(36).substring(2, 10);
-    return `${datePrefix}${randomSuffix}`;
-}
-
-app.get('/', (req, res) => {
-    res.json({ status: "ONLINE", provider: "Flutterwave Client Auth & VTpass Integrated Backend" });
-});
-
-// 1. BILLS / UTILITIES (VTpass)
-app.post('/api/merchant/pay-bill', async (req, res) => {
+// ==================== ROUTE 1: FLUTTERWAVE BANK PAYOUT ====================
+// Initiates a real bank transfer from your Flutterwave account to a recipient bank
+app.post('/api/merchant/payout-bank', async (req, res) => {
     try {
-        const { txHash, serviceID, phone, amountFiat, variation_code } = req.body;
+        const { accountBank, accountNumber, amount, narration, walletAddress } = req.body;
 
-        if (!txHash || !serviceID || !phone || !amountFiat) {
-            return res.status(400).json({ success: false, message: "Missing required parameters." });
+        if (!accountBank || !accountNumber || !amount || !walletAddress) {
+            return res.status(400).json({ success: false, error: "Missing required payout parameters." });
         }
 
-        if (processedTxHashes.has(txHash)) {
-            return res.status(400).json({ success: false, message: "Transaction already processed." });
-        }
-
-        const receipt = await provider.getTransactionReceipt(txHash);
-        if (!receipt || receipt.status !== 1) {
-            return res.status(400).json({ success: false, message: "Unverified BSC transaction." });
-        }
-
-        processedTxHashes.add(txHash);
-
-        const requestId = generateVTpassRequestId();
-        const payload = {
-            request_id: requestId,
-            serviceID: serviceID.toLowerCase(),
-            billersCode: phone,
-            amount: amountFiat,
-            phone: phone
-        };
-
-        if (variation_code) payload.variation_code = variation_code;
-
-        const vtpassRes = await axios.post("https://vtpass.com/api/pay", payload, {
-            headers: {
-                'api-key': process.env.VTPASS_API_KEY || '',
-                'secret-key': process.env.VTPASS_SECRET_KEY || '',
-                'Content-Type': 'application/json'
+        // Call Flutterwave v3 Transfer API
+        const response = await axios.post(
+            'https://api.flutterwave.com/v3/transfers',
+            {
+                account_bank: accountBank,
+                account_number: accountNumber,
+                amount: parseFloat(amount),
+                narration: narration || "EFC Merchant Withdrawal",
+                currency: "NGN",
+                reference: `EFC_PAYOUT_${Date.now()}_${Math.floor(Math.random() * 1000)}`
             },
-            timeout: 20000
-        });
-
-        if (vtpassRes.data && (vtpassRes.data.code === '000' || vtpassRes.data.code === '099')) {
-            return res.json({ success: true, message: `Delivery Initiated! Request ID: ${requestId}`, data: vtpassRes.data });
-        } else {
-            return res.status(400).json({ success: false, message: `Provider Error: ${vtpassRes.data.response_description || 'Declined'}` });
-        }
-
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.response?.data?.response_description || error.message });
-    }
-});
-
-// 2. BANK TRANSFERS / PAYOUTS (Flutterwave)
-app.post('/api/merchant/withdraw-to-bank', async (req, res) => {
-    try {
-        const { txHash, bankCode, accountNumber, amountFiat, beneficiaryName } = req.body;
-
-        if (!txHash || !bankCode || !accountNumber || !amountFiat) {
-            return res.status(400).json({ success: false, message: "Missing payout parameters." });
-        }
-
-        if (processedTxHashes.has(txHash)) {
-            return res.status(400).json({ success: false, message: "Transaction already processed." });
-        }
-
-        const receipt = await provider.getTransactionReceipt(txHash);
-        if (!receipt || receipt.status !== 1) {
-            return res.status(400).json({ success: false, message: "Unverified BSC transaction." });
-        }
-
-        processedTxHashes.add(txHash);
-
-        // Initiate transfer using Flutterwave Secret Key
-        const flwRes = await axios.post("https://api.flutterwave.com/v3/transfers", {
-            account_bank: bankCode,
-            account_number: accountNumber,
-            amount: Number(amountFiat),
-            currency: "NGN",
-            narration: "Efikcoin POS Settlement",
-            reference: "EFC_FLW_" + Date.now(),
-            beneficiary_name: beneficiaryName || "EFC Account"
-        }, {
-            headers: {
-                'Authorization': `Bearer ${FLW_SECRET}`,
-                'Content-Type': 'application/json'
+            {
+                headers: {
+                    'Authorization': `Bearer ${FLW_SECRET_KEY}`,
+                    'Content-Type': 'application/json'
+                }
             }
+        );
+
+        return res.json({
+            success: true,
+            message: "Payout initiated successfully via Flutterwave.",
+            data: response.data.data
         });
 
-        res.json({ success: true, message: "Bank transfer processed!", data: flwRes.data });
+    } catch (error) {
+        console.error("Flutterwave Payout Error:", error.response ? error.response.data : error.message);
+        return res.status(500).json({
+            success: false,
+            error: error.response ? error.response.data.message : "Bank Payout execution failed."
+        });
+    }
+});
+
+// ==================== ROUTE 2: FLUTTERWAVE WEBHOOK (AUTOMATED EFC DISPATCH) ====================
+// Listens for automated bank transfers paid by users and credits their Web3 address with EFC
+app.post('/api/webhooks/flutterwave', async (req, res) => {
+    try {
+        // Verify Webhook Signature Hash
+        const signature = req.headers['verif-hash'];
+        if (!signature || signature !== FLW_SECRET_HASH) {
+            return res.status(401).send("Unauthorized Webhook Signature.");
+        }
+
+        const payload = req.body;
+
+        // Check if transaction is successful
+        if (payload.status === 'successful' && payload.event === 'charge.completed') {
+            const amountPaidNGN = payload.data.amount;
+            const customerMeta = payload.data.meta || {};
+            const userWalletAddress = customerMeta.walletAddress || payload.data.tx_ref;
+
+            console.log(`[BANK DEPOSIT DETECTED] Amount: ${amountPaidNGN} NGN for Wallet: ${userWalletAddress}`);
+
+            if (userWalletAddress && ethers.utils.isAddress(userWalletAddress)) {
+                // Calculate EFC Token Conversion Rate (e.g., 100 NGN = 1 EFC)
+                const ratePerNGN = 0.01; 
+                const efcToCredit = amountPaidNGN * ratePerNGN;
+                const parsedEFC = ethers.utils.parseUnits(efcToCredit.toString(), 18);
+
+                // Dispatch EFC Tokens directly on-chain from Relayer Wallet
+                console.log(`[ON-CHAIN DISPATCH] Sending ${efcToCredit} EFC to ${userWalletAddress}...`);
+                const tx = await efcContract.transfer(userWalletAddress, parsedEFC);
+                await tx.wait();
+
+                console.log(`[SUCCESS] EFC Token Transfer Confirmed! Tx Hash: ${tx.hash}`);
+            }
+        }
+
+        return res.status(200).send("Webhook Processed Successfully");
 
     } catch (error) {
-        console.error("Flutterwave Transfer Error:", error.response ? error.response.data : error.message);
-        res.status(500).json({ success: false, message: error.response?.data?.message || error.message });
+        console.error("Webhook Execution Error:", error.message);
+        return res.status(500).send("Webhook Error processing transaction.");
     }
 });
 
-// 3. FLUTTERWAVE WEBHOOK
-app.post('/api/merchant/webhook', (req, res) => {
-    const signature = req.headers['verif-hash'];
-    if (signature && signature === process.env.FLW_SECRET_HASH) {
-        console.log("Flutterwave Webhook Payload:", req.body);
-        return res.status(200).send("Webhook Received");
-    }
-    return res.status(401).send("Unauthorized Webhook Call");
-});
-
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on port ${PORT}`);
+// Start Render Backend
+app.listen(PORT, () => {
+    console.log(`EFC Merchant Server online on Render Port ${PORT}`);
 });
