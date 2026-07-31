@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EFC Pay - Global Merchant & Financial Ecosystem</title>
+    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #0d1117;
+            --card-bg: #161b22;
+            --primary: #f0a500;
+            --primary-hover: #d49000;
+            --text-color: #c9d1d9;
+            --text-white: #ffffff;
+            --border: #30363d;
+            --danger: #da3633;
+            --success: #238636;
+        }
+
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 520px;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+
+        .brand {
+            font-size: 1.3rem;
+            font-weight: bold;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .wallet-badge {
+            font-size: 0.8rem;
+            background: #21262d;
+            padding: 6px 12px;
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            color: var(--text-white);
+            word-break: break-all;
+        }
+
+        .balance-card {
+            background: #21262d;
+            border-radius: 12px;
+            padding: 18px;
+            text-align: center;
+            border: 1px solid var(--border);
+            margin-bottom: 20px;
+        }
+
+        .balance-card h2 {
+            margin: 5px 0;
+            font-size: 2.2rem;
+            color: var(--primary);
+        }
+
+        .grid-balances {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .sub-balance {
+            background: var(--card-bg);
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            font-size: 0.85rem;
+        }
+
+        .sub-balance span {
+            display: block;
+            font-weight: bold;
+            color: var(--text-white);
+            font-size: 1rem;
+            margin-top: 4px;
+        }
+
+        .nav-tabs {
+            display: flex;
+            gap: 6px;
+            overflow-x: auto;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+
+        .tab-btn {
+            background: #21262d;
+            border: 1px solid var(--border);
+            color: var(--text-color);
+            padding: 8px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            white-space: nowrap;
+            font-size: 0.85rem;
+            font-weight: bold;
+            flex: 1;
+            text-align: center;
+        }
+
+        .tab-btn.active {
+            background: var(--primary);
+            color: #000;
+            border-color: var(--primary);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            font-size: 0.85rem;
+            margin-bottom: 6px;
+            color: var(--text-white);
+        }
+
+        input, select {
+            width: 100%;
+            padding: 12px;
+            background: #0d1117;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-white);
+            box-sizing: border-box;
+            font-size: 0.95rem;
+        }
+
+        .btn-action {
+            width: 100%;
+            padding: 14px;
+            background: var(--primary);
+            color: #000;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 1rem;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        .btn-action:hover {
+            background: var(--primary-hover);
+        }
+
+        .merchant-box {
+            background: #1c2128;
+            border: 1px dashed var(--primary);
+            border-radius: 10px;
+            padding: 14px;
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+        }
+
+        .merchant-box p {
+            margin: 6px 0;
+            color: var(--text-white);
+        }
+
+        .qr-placeholder {
+            text-align: center;
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            display: inline-block;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- Header -->
+    <div class="header">
+        <div class="brand">🟡 EFC PAY</div>
+        <button id="connectBtn" onclick="connectWallet()" class="tab-btn active">Connect Wallet</button>
+    </div>
+
+    <!-- Active User Wallet Identity -->
+    <div style="margin-bottom: 15px;">
+        <span style="font-size: 0.8rem;">USER WALLET ADDRESS:</span>
+        <div id="userWalletAddr" class="wallet-badge">Connecting...</div>
+    </div>
+
+    <!-- Main Balances Display -->
+    <div class="balance-card">
+        <span style="font-size: 0.85rem; text-transform: uppercase; color: #8b949e;">EFC Token Balance</span>
+        <h2 id="efcBalance">0.00 EFC</h2>
+        <button onclick="updateBalances()" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:0.8rem;">
+            🔄 Sync On-Chain Balances
+        </button>
+
+        <div class="grid-balances">
+            <div class="sub-balance">BNB Gas Balance<span id="bnbBalance">0.0000 BNB</span></div>
+            <div class="sub-balance">Staked EFC<span id="stakedEfc">0.00 EFC</span></div>
+        </div>
+    </div>
+
+    <!-- Navigation Bar -->
+    <div class="nav-tabs">
+        <button class="tab-btn active" onclick="switchTab('SendReceive', this)">Send/Receive</button>
+        <button class="tab-btn" onclick="switchTab('BankBuy', this)">Bank Buy</button>
+        <button class="tab-btn" onclick="switchTab('Utilities', this)">Utilities</button>
+        <button class="tab-btn" onclick="switchTab('Payout', this)">Payout</button>
+        <button class="tab-btn" onclick="switchTab('Stake', this)">Stake EFC</button>
+    </div>
+
+    <!-- 1. SEND / RECEIVE TAB -->
+    <div id="SendReceive" class="tab-content active">
+        <h3>Transfer EFC Tokens On-Chain</h3>
+        <div class="form-group">
+            <label>Recipient Address (0x...)</label>
+            <input type="text" id="sendRecipient" placeholder="0x..." />
+        </div>
+        <div class="form-group">
+            <label>Amount (EFC)</label>
+            <input type="number" id="sendAmount" placeholder="100" />
+        </div>
+        <button onclick="sendEFC()" class="btn-action">Send EFC On-Chain</button>
+
+        <hr style="border:0; border-top:1px solid var(--border); margin:20px 0;">
+
+        <h3>Receive EFC Tokens</h3>
+        <p style="font-size:0.85rem;">Share your unique EFC Wallet Address to receive payments:</p>
+        <div class="wallet-badge" id="receiveAddrBox" style="margin-bottom:10px;">-</div>
+        <button onclick="copyWalletAddr()" class="tab-btn" style="width:100%;">Copy Address</button>
+    </div>
+
+    <!-- 2. BANK BUY (FIAT DEPOSIT) TAB -->
+    <div id="BankBuy" class="tab-content">
+        <h3>Deposit Fiat / Buy EFC via Bank Transfer</h3>
+        <p style="font-size:0.85rem; margin-bottom:15px;">
+            Transfer local currency directly to the official EFC merchant settlement account to auto-credit your wallet:
+        </p>
+
+        <div class="merchant-box">
+            <p><strong>Bank Name:</strong> Nuvion MFB (Formerly Indulge MFB)</p>
+            <p><strong>Account Number:</strong> 9907052797</p>
+            <p><strong>Account Name:</strong> Oku Edet EfikcoinEFC FLW</p>
+            <p><strong>Reference Note:</strong> <span id="depositRef">EFC-PAY</span></p>
+        </div>
+
+        <div class="form-group">
+            <label>Amount Deposited (NGN)</label>
+            <input type="number" id="fiatBuyAmount" placeholder="Enter NGN Amount (e.g., 5000)" />
+        </div>
+        <button type="button" onclick="confirmBankTransfer()" class="btn-action">Confirm Bank Deposit</button>
+    </div>
+
+    <!-- 3. UTILITIES & BILLS TAB -->
+    <div id="Utilities" class="tab-content">
+        <h3>Pay Bills & Recharge Utilities</h3>
+        <div class="form-group">
+            <label>Utility Category</label>
+            <select id="utilityType">
+                <option value="AIRTIME">Airtime (All Networks - MTN/Airtel/Glo/9mobile)</option>
+                <option value="MOBILEDATA">Mobile Data Bundle</option>
+                <option value="ELECTRICITY">Electricity Bill Payment</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Phone Number or Account ID</label>
+            <input type="text" id="utilityTarget" placeholder="e.g. 09168789221 or Meter No." />
+        </div>
+        <div class="form-group">
+            <label>Amount (NGN / EFC Equivalent)</label>
+            <input type="number" id="utilityAmount" placeholder="Amount (e.g. 1000)" />
+        </div>
+        <button type="button" onclick="executeBillPayment()" class="btn-action">Pay Utility via EFC</button>
+    </div>
+
+    <!-- 4. BANK PAYOUT TAB -->
+    <div id="Payout" class="tab-content">
+        <h3>Withdraw Funds to Bank</h3>
+        <div class="form-group">
+            <label>3-Digit Bank Code</label>
+            <input type="text" id="payoutBankCode" placeholder="058 (GTB), 033 (UBA), 057 (Zenith)" />
+        </div>
+        <div class="form-group">
+            <label>10-Digit Account Number</label>
+            <input type="text" id="payoutAccNum" placeholder="0232355520" />
+        </div>
+        <div class="form-group">
+            <label>Withdrawal Amount (NGN)</label>
+            <input type="number" id="payoutAmount" placeholder="1000" />
+        </div>
+        <button type="button" onclick="executeBankPayout()" class="btn-action">Withdraw Funds to Bank</button>
+    </div>
+
+    <!-- 5. STAKE EFC TAB -->
+    <div id="Stake" class="tab-content">
+        <h3>Stake EFC Tokens</h3>
+        <p style="font-size:0.85rem;">Lock your $EFC$ tokens to earn passive daily yield reward.</p>
+        <div class="form-group">
+            <label>Amount to Stake</label>
+            <input type="number" id="stakeAmount" placeholder="100" />
+        </div>
+        <button type="button" onclick="stakeEFC()" class="btn-action">Stake EFC</button>
+    </div>
+</div>
+
+<script>
+    // Config
+    const BACKEND_URL = "https://efikcoin-efc-1.onrender.com";
+    const BSC_RPC = "https://bsc-dataseed.binance.org/";
+    const EFC_CONTRACT_ADDRESS = "0x677ce9cba67f7484ea951a12897ce780cfd8fed1";
+    const STAKING_CONTRACT_ADDRESS = "0x677ce9cba67f7484ea951a12897ce780cfd8fed1"; // Updated if different
+
+    const EFC_ABI = [
+        "function balanceOf(address owner) view returns (uint256)",
+        "function transfer(address to, uint256 amount) returns (bool)",
+        "function decimals() view returns (uint8)"
+    ];
+
+    let provider, signer, userWalletAddress;
+
+    // Initialize Identity & Provider
+    async function initApp() {
+        provider = new ethers.providers.JsonRpcProvider(BSC_RPC);
+        
+        // Check for Web3 / MetaMask or assign local persistent wallet
+        if (window.ethereum) {
+            try {
+                const web3Provider = new ethers.providers.Web3Provider(window.ethereum);
+                const accounts = await web3Provider.listAccounts();
+                if (accounts.length > 0) {
+                    signer = web3Provider.getSigner();
+                    userWalletAddress = await signer.getAddress();
+                }
+            } catch (e) {
+                console.log("Web3 passive init fallback");
+            }
+        }
+
+        if (!userWalletAddress) {
+            let stored = localStorage.getItem("EFC_USER_KEY");
+            if (!stored) {
+                const newWallet = ethers.Wallet.createRandom();
+                localStorage.setItem("EFC_USER_KEY", newWallet.privateKey);
+                userWalletAddress = newWallet.address;
+            } else {
+                const localWallet = new ethers.Wallet(stored);
+                userWalletAddress = localWallet.address;
+            }
+        }
+
+        document.getElementById("userWalletAddr").innerText = userWalletAddress;
+        document.getElementById("receiveAddrBox").innerText = userWalletAddress;
+        document.getElementById("depositRef").innerText = `EFC-${userWalletAddress.substring(2,6).toUpperCase()}`;
+
+        updateBalances();
+    }
+
+    // Connect External Metamask Wallet
+    async function connectWallet() {
+        if (!window.ethereum) return alert("MetaMask not detected! Using assigned system wallet: " + userWalletAddress);
+        try {
+            const web3Provider = new ethers.providers.Web3Provider(window.ethereum);
+            await web3Provider.send("eth_requestAccounts", []);
+            signer = web3Provider.getSigner();
+            userWalletAddress = await signer.getAddress();
+            document.getElementById("userWalletAddr").innerText = userWalletAddress;
+            document.getElementById("receiveAddrBox").innerText = userWalletAddress;
+            document.getElementById("connectBtn").innerText = "Connected: " + userWalletAddress.substring(0, 6) + "...";
+            updateBalances();
+        } catch (err) {
+            alert("Connection error: " + err.message);
+        }
+    }
+
+    // Tab Switcher
+    function switchTab(tabId, btnElement) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        if(btnElement) btnElement.classList.add('active');
+    }
+
+    // Balance Updates
+    async function updateBalances() {
+        try {
+            const bnbRaw = await provider.getBalance(userWalletAddress);
+            document.getElementById("bnbBalance").innerText = parseFloat(ethers.utils.formatEther(bnbRaw)).toFixed(4) + " BNB";
+
+            const contract = new ethers.Contract(EFC_CONTRACT_ADDRESS, EFC_ABI, provider);
+            const efcRaw = await contract.balanceOf(userWalletAddress);
+            document.getElementById("efcBalance").innerText = parseFloat(ethers.utils.formatUnits(efcRaw, 18)).toFixed(2) + " EFC";
+        } catch (e) {
+            console.error("Balance sync failed:", e);
+        }
+    }
+
+    // Send EFC On-Chain
+    async function sendEFC() {
+        const recipient = document.getElementById("sendRecipient").value.trim();
+        const amount = document.getElementById("sendAmount").value.trim();
+
+        if (!ethers.utils.isAddress(recipient)) return alert("Invalid BSC recipient address!");
+        if (!amount || amount <= 0) return alert("Invalid amount!");
+        if (!signer) return alert("Please click 'Connect Wallet' with MetaMask to complete on-chain transfers.");
+
+        try {
+            const contract = new ethers.Contract(EFC_CONTRACT_ADDRESS, EFC_ABI, signer);
+            const parsedAmount = ethers.utils.parseUnits(amount, 18);
+            const tx = await contract.transfer(recipient, parsedAmount);
+            alert("Transaction Submitted! Hash: " + tx.hash);
+            await tx.wait();
+            alert("✅ Transfer Confirmed On-Chain!");
+            updateBalances();
+        } catch (e) {
+            alert("Transfer failed: " + e.message);
+        }
+    }
+
+    // Pay Utilities Function
+    async function executeBillPayment() {
+        const type = document.getElementById("utilityType").value;
+        const target = document.getElementById("utilityTarget").value.trim();
+        const amount = document.getElementById("utilityAmount").value.trim();
+
+        if (!target) return alert("Please enter target phone number or meter number!");
+        if (!amount || amount <= 0) return alert("Please enter amount!");
+
+        alert(`Processing ${type} request...\nTarget: ${target}\nAmount: ₦${amount}`);
+
+        try {
+            const res = await fetch(`${BACKEND_URL}/api/merchant/pay-bill`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    customer: target,
+                    amount: amount,
+                    type: type,
+                    country: "NG"
+                })
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                alert("✅ Bill Payment Successful!\nRef: " + (data.data.reference || "Completed"));
+            } else {
+                alert("❌ Bill Failed: " + (data.error || data.message));
+            }
+        } catch (e) {
+            alert("Backend Connection Error: " + e.message);
+        }
+    }
+
+    // Bank Payout Function
+    async function executeBankPayout() {
+        const rawBankCode = document.getElementById("payoutBankCode").value.trim();
+        const accNum = document.getElementById("payoutAccNum").value.trim();
+        const amount = document.getElementById("payoutAmount").value.trim();
+        const bankCode = rawBankCode.replace(/\D/g, '');
+
+        if (!bankCode || bankCode.length < 3) return alert("Enter valid 3-digit bank code!");
+        if (!accNum || accNum.length < 10) return alert("Enter valid 10-digit account number!");
+        if (!amount || amount <= 0) return alert("Enter valid amount!");
+
+        alert(`Initiating bank payout...\nBank Code: ${bankCode}\nAccount: ${accNum}\nAmount: ₦${amount}`);
+
+        try {
+            const res = await fetch(`${BACKEND_URL}/api/merchant/payout-bank`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    accountBank: bankCode,
+                    accountNumber: accNum,
+                    amount: amount,
+                    walletAddress: userWalletAddress,
+                    narration: "EFC Merchant Withdrawal"
+                })
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                alert("✅ Bank Transfer Successful!\nRef: " + (data.data.reference || data.data.id));
+            } else {
+                alert("❌ Bank Transfer Failed: " + (data.error || data.message));
+            }
+        } catch (e) {
+            alert("Backend Connection Error: " + e.message);
+        }
+    }
+
+    // Confirm Bank Deposit
+    async function confirmBankTransfer() {
+        const amount = document.getElementById("fiatBuyAmount").value.trim();
+        if (!amount || amount <= 0) return alert("Please enter the amount paid!");
+        alert(`Deposit recorded! Once Flutterwave confirms receipt of ₦${amount} at Nuvion MFB account 9907052797, your wallet (${userWalletAddress}) will be auto-credited with EFC tokens.`);
+    }
+
+    // Stake EFC Function
+    async function stakeEFC() {
+        const amount = document.getElementById("stakeAmount").value.trim();
+        if (!amount || amount <= 0) return alert("Enter valid staking amount!");
+        if (!signer) return alert("Connect MetaMask wallet to sign on-chain staking transaction.");
+        try {
+            const contract = new ethers.Contract(EFC_CONTRACT_ADDRESS, EFC_ABI, signer);
+            const parsed = ethers.utils.parseUnits(amount, 18);
+            const tx = await contract.transfer(STAKING_CONTRACT_ADDRESS, parsed);
+            alert("Staking Transaction Submitted! Hash: " + tx.hash);
+            await tx.wait();
+            alert("✅ Successfully Staked " + amount + " EFC!");
+            updateBalances();
+        } catch (e) {
+            alert("Staking failed: " + e.message);
+        }
+    }
+
+    function copyWalletAddr() {
+        navigator.clipboard.writeText(userWalletAddress);
+        alert("Wallet Address Copied to Clipboard!");
+    }
+
+    // Auto Run on load
+    window.onload = initApp;
+</script>
+</body>
+</html>
