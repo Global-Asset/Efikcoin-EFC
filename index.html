@@ -479,6 +479,46 @@ async function claimStakingRewards() {
         alert("⚠️ Backend Connection Error: " + e.message + "\n\nMake sure your Render backend service is awake!");
     }
     }
+
+    async function executeBillPayment() {
+    const customerInput = document.getElementById("billCustomer") ? document.getElementById("billCustomer").value.trim() : "";
+    const amountInput = document.getElementById("billAmount") ? document.getElementById("billAmount").value.trim() : "";
+    const phoneOrAccount = customerInput || document.querySelector('#Utilities input[type="text"]').value.trim();
+    const amount = amountInput || document.querySelectorAll('#Utilities input[type="text"]')[1].value.trim();
+
+    if (!phoneOrAccount) {
+        return alert("Please enter a valid phone number or utility account number!");
+    }
+    if (!amount || parseFloat(amount) <= 0) {
+        return alert("Please enter a valid bill amount!");
+    }
+
+    alert(`Processing Utility Bill / Airtime payment...\nTarget: ${phoneOrAccount}\nAmount: ₦${amount}`);
+
+    try {
+        const response = await fetch(`${BACKEND_URL}/api/merchant/pay-bill`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                customer: phoneOrAccount,
+                amount: amount,
+                type: "AIRTIME",
+                country: "NG"
+            })
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+            alert("✅ Bill Payment Successful!\nTx Reference: " + result.data.reference);
+        } else {
+            alert("❌ Bill Payment Failed: " + (result.error || result.message));
+        }
+    } catch (e) {
+        console.error("Bill Payment Error:", e);
+        alert("⚠️ Backend Connection Error: " + e.message);
+    }
+            }
     
 function switchTab(t) {
     const tabs = ["transfer", "bankDeposit", "pay", "bankPayout", "stake"];
