@@ -122,18 +122,26 @@
         </div>
 
         <!-- TAB 2: BANK RECEIVE / BUY EFC -->
-        <div id="bankDepositTab" class="card" style="margin-top:12px; display:none;">
-            <h3>Deposit Fiat / Buy EFC via Bank Transfer</h3>
-            <p style="font-size:12px; color:var(--text-secondary);">Transfer local fiat currency directly to the merchant treasury account to automatically credit your wallet with EFC tokens or crypto balance:</p>
-            <div class="bank-info">
-                <strong>Bank Name:</strong> Wema Bank / OPay<br>
-                <strong>Account Number:</strong> 9012345678<br>
-                <strong>Account Name:</strong> Efikcoin Merchant Settlement<br>
-                <strong>Reference Note:</strong> <span id="depositRef" style="color:var(--accent); font-weight:bold;">EFC-0000</span>
-            </div>
-            <input type="number" id="fiatPaid" class="form-control" placeholder="Amount Deposited (NGN / USD)">
-            <button class="btn-action" onclick="notifyBankDeposit()">Confirm Bank Transfer Paid</button>
-        </div>
+        <!-- Bank Buy / Deposit Fiat Tab -->
+<div id="BankBuy" class="tab-content">
+    <h3>Deposit Fiat / Buy EFC via Bank Transfer</h3>
+    <p class="description">
+        Transfer local fiat currency directly to the merchant treasury account to automatically credit your wallet with EFC tokens:
+    </p>
+
+    <div class="account-info-box">
+        <p><strong>Bank Name:</strong> Nuvion MFB (Formerly Indulge MFB)</p>
+        <p><strong>Account Number:</strong> 9907052797</p>
+        <p><strong>Account Name:</strong> Oku Edet EfikcoinEFC FLW</p>
+        <p><strong>Reference Note:</strong> <span id="depositRefNote">EFC-E865</span></p>
+    </div>
+
+    <input type="number" id="buyAmount" placeholder="Amount Deposited (NGN / USD)" />
+    
+    <button type="button" onclick="confirmBankTransfer()" class="btn-action">
+        Confirm Bank Transfer Paid
+    </button>
+</div>
 
         <!-- TAB 3: UTILITIES -->
         <div id="payTab" class="card" style="margin-top:12px; display:none;">
