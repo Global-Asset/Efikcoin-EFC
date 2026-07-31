@@ -1,38 +1,33 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <link rel="manifest" href="/manifest.json">
-<meta name="theme-color" content="#f39c12">
-<script>
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').catch(err => console.log(err));
-  }
-</script>
-    
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EFC Pay - Global POS Terminal</title>
+    <title>EFC Pay - Self-Custodial POS & Wallet</title>
     <link rel="manifest" href="/manifest.json">
     <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@walletconnect/web3-provider@1.8.0/dist/umd/index.min.js"></script>
     <style>
-        :root { --bg-dark: #0f172a; --card-bg: #1e293b; --accent: #f59e0b; --text: #f8fafc; }
+        :root { --bg-dark: #0f172a; --card-bg: #1e293b; --accent: #f59e0b; --text: #f8fafc; --danger: #ef4444; --success: #10b981; }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg-dark); color: var(--text); margin: 0; padding: 15px; }
-        .container { max-width: 500px; margin: 0 auto; }
+        .container { max-width: 480px; margin: 0 auto; }
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
         .logo { font-size: 22px; font-weight: bold; color: var(--accent); }
-        .btn { background: var(--accent); color: #000; font-weight: bold; padding: 12px 20px; border: none; border-radius: 8px; width: 100%; cursor: pointer; font-size: 16px; margin-top: 10px; }
+        .btn { background: var(--accent); color: #000; font-weight: bold; padding: 12px 20px; border: none; border-radius: 8px; width: 100%; cursor: pointer; font-size: 15px; margin-top: 10px; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-outline { background: transparent; border: 1px solid var(--accent); color: var(--accent); }
         .card { background: var(--card-bg); border-radius: 12px; padding: 16px; margin-bottom: 15px; border: 1px solid #334155; }
         .input-group { margin-bottom: 12px; }
         .input-group label { display: block; font-size: 12px; color: #94a3b8; margin-bottom: 4px; }
-        .input-group input, .input-group select { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #334155; background: #0f172a; color: white; box-sizing: border-box; }
+        .input-group input, .input-group select, .input-group textarea { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #334155; background: #0f172a; color: white; box-sizing: border-box; }
         .tab-bar { display: flex; gap: 8px; margin-bottom: 15px; }
-        .tab { flex: 1; padding: 10px; text-align: center; background: #334155; border-radius: 6px; cursor: pointer; font-size: 14px; }
+        .tab { flex: 1; padding: 10px; text-align: center; background: #334155; border-radius: 6px; cursor: pointer; font-size: 13px; }
         .tab.active { background: var(--accent); color: #000; font-weight: bold; }
-        .tx-history { max-height: 200px; overflow-y: auto; font-size: 13px; }
-        .tx-item { padding: 8px; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; }
-        .receipt-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); padding: 20px; align-items: center; justify-content: center; }
-        .receipt-card { background: #fff; color: #000; padding: 20px; border-radius: 12px; width: 100%; max-width: 350px; text-align: center; }
+        .tx-history { max-height: 220px; overflow-y: auto; font-size: 13px; }
+        .tx-item { padding: 10px; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; }
+        .badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: #334155; color: #94a3b8; }
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); padding: 20px; align-items: center; justify-content: center; z-index: 1000; }
+        .modal-card { background: var(--card-bg); color: var(--text); padding: 20px; border-radius: 12px; width: 100%; max-width: 360px; text-align: center; }
+        .seed-box { background: #0f172a; padding: 10px; border: 1px dashed var(--accent); border-radius: 6px; word-break: break-all; margin: 10px 0; font-family: monospace; }
     </style>
 </head>
 <body>
@@ -40,37 +35,59 @@
 <div class="container">
     <div class="header">
         <div class="logo">EFC PAY 💳</div>
-        <button id="connectBtn" class="btn" style="width:auto; padding:8px 16px;" onclick="connectWallet()">Connect Wallet</button>
+        <div id="walletStatusBadge" class="badge">Checking Wallet...</div>
     </div>
 
-    <!-- Wallet Dashboard -->
-    <div class="card">
-        <div style="font-size:12px; color:#94a3b8;">Connected Wallet:</div>
-        <div id="walletAddr" style="font-size:14px; font-weight:bold; word-break:break-all;">Not Connected</div>
-        <div style="margin-top:10px; font-size:12px; color:#94a3b8;">EFC Balance:</div>
-        <div id="efcBal" style="font-size:20px; font-weight:bold; color:var(--accent);">0.00 EFC</div>
+    <!-- 1. WALLET CREATION / SETUP SCREEN (IF NO WALLET LOADED) -->
+    <div id="noWalletCard" class="card" style="display:none;">
+        <h2 style="margin-top:0;">EFC Self-Custodial Wallet</h2>
+        <p style="font-size:13px; color:#94a3b8;">Create or import your Efikcoin wallet to execute instant transactions worldwide without relying on external wallet extensions.</p>
+        <button class="btn" onclick="createNewWallet()">✨ Create New EFC Wallet</button>
+        <button class="btn btn-outline" onclick="showImportModal()">🔑 Import Seed Phrase / Private Key</button>
     </div>
 
-    <!-- Navigation Tabs -->
-    <div class="tab-bar">
-        <div class="tab active" onclick="switchTab('utilities')">Utilities</div>
-        <div class="tab" onclick="switchTab('payout')">Bank Payout</div>
+    <!-- 2. MAIN DASHBOARD (WHEN WALLET IS ACTIVE) -->
+    <div id="dashboardCard" class="card" style="display:none;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:12px; color:#94a3b8;">My Wallet Address:</span>
+            <button onclick="copyAddress()" style="background:none; border:none; color:var(--accent); cursor:pointer; font-size:12px;">Copy 📋</button>
+        </div>
+        <div id="displayAddr" style="font-size:13px; font-weight:bold; word-break:break-all; margin:4px 0 12px 0; color:#cbd5e1;">-</div>
+        
+        <div style="display:flex; justify-content:space-between;">
+            <div>
+                <div style="font-size:11px; color:#94a3b8;">EFC Balance</div>
+                <div id="displayEfc" style="font-size:18px; font-weight:bold; color:var(--accent);">0.00 EFC</div>
+            </div>
+            <div style="text-align:right;">
+                <div style="font-size:11px; color:#94a3b8;">BNB Gas Balance</div>
+                <div id="displayBnb" style="font-size:18px; font-weight:bold; color:#f8fafc;">0.00 BNB</div>
+            </div>
+        </div>
+        <button class="btn btn-outline" style="margin-top:12px; padding:6px; font-size:12px;" onclick="refreshBalances()">🔄 Refresh Balances</button>
+    </div>
+
+    <!-- MAIN NAVIGATION TABS -->
+    <div id="appTabs" class="tab-bar" style="display:none;">
+        <div class="tab active" onclick="switchTab('utilities')">Bills & Utilities</div>
+        <div class="tab" onclick="switchTab('payout')">Bank Transfer</div>
         <div class="tab" onclick="switchTab('history')">History</div>
+        <div class="tab" onclick="switchTab('settings')">Settings</div>
     </div>
 
-    <!-- 1. Utilities Section -->
-    <div id="utilitiesTab" class="card">
-        <h3>Pay Utilities / Bills</h3>
+    <!-- TAB 1: UTILITIES -->
+    <div id="utilitiesTab" class="card" style="display:none;">
+        <h3>Pay Utilities with EFC</h3>
         <div class="input-group">
             <label>Service Category</label>
             <select id="serviceCategory">
                 <option value="airtime">Airtime Recharge</option>
                 <option value="data">Data Bundle</option>
-                <option value="dstv">DSTV / GOTV</option>
+                <option value="dstv">DSTV / GOTV Subscription</option>
             </select>
         </div>
         <div class="input-group">
-            <label>Provider</label>
+            <label>Provider Network</label>
             <select id="provider">
                 <option value="mtn">MTN</option>
                 <option value="airtel">Airtel</option>
@@ -79,142 +96,210 @@
             </select>
         </div>
         <div class="input-group">
-            <label>Phone / Account Number</label>
+            <label>Phone / Meter Number</label>
             <input type="text" id="phoneNum" placeholder="e.g. 08012345678">
         </div>
         <div class="input-group">
-            <label>Amount (NGN)</label>
+            <label>Amount (NGN Fiat)</label>
             <input type="number" id="billAmount" placeholder="1000">
         </div>
-        <button class="btn" onclick="processPayment()">Confirm & Pay with EFC</button>
+        <button class="btn" onclick="executeUtilityPayment()">Confirm & Pay with EFC</button>
     </div>
 
-    <!-- 2. Bank Payout Section -->
+    <!-- TAB 2: BANK PAYOUT -->
     <div id="payoutTab" class="card" style="display:none;">
         <h3>Global / Local Bank Transfer</h3>
         <div class="input-group">
-            <label>Bank Code / Name</label>
-            <input type="text" id="bankCode" placeholder="e.g. 044 (Access), 058 (GTB), or SWIFT Code">
+            <label>Destination Bank Code / SWIFT</label>
+            <input type="text" id="bankCode" placeholder="e.g. 044 (Access), 058 (GTB), or OPay">
         </div>
         <div class="input-group">
             <label>Account Number</label>
             <input type="text" id="accNumber" placeholder="10 Digit Account Number">
         </div>
         <div class="input-group">
-            <label>Amount (Fiat)</label>
+            <label>Amount (NGN / Fiat)</label>
             <input type="number" id="payoutAmount" placeholder="5000">
         </div>
-        <button class="btn" onclick="processBankPayout()">Transfer Funds via Flutterwave</button>
+        <button class="btn" onclick="executeBankPayout()">Send Fiat via Flutterwave</button>
     </div>
 
-    <!-- 3. Transaction History & Proof -->
+    <!-- TAB 3: HISTORY -->
     <div id="historyTab" class="card" style="display:none;">
-        <h3>Transaction History & Proof</h3>
+        <h3>Transaction Receipts & Proof</h3>
         <div class="tx-history" id="txList">
-            <p style="color:#94a3b8; text-align:center;">No recent transactions yet.</p>
+            <p style="color:#94a3b8; text-align:center;">No recent transactions.</p>
         </div>
+    </div>
+
+    <!-- TAB 4: SETTINGS & BACKUP -->
+    <div id="settingsTab" class="card" style="display:none;">
+        <h3>Wallet Backup & Security</h3>
+        <p style="font-size:12px; color:#94a3b8;">Your private key is stored locally on this device. Backup your key so you never lose access to your funds.</p>
+        <button class="btn btn-outline" onclick="exportPrivateKey()">👁️ View Private Key</button>
+        <button class="btn btn-danger" style="margin-top:15px;" onclick="removeWallet()">🚪 Remove Wallet from Device</button>
+    </div>
+
+</div>
+
+<!-- MODAL: IMPORT WALLET -->
+<div id="importModal" class="modal">
+    <div class="modal-card">
+        <h3>Import EFC Wallet</h3>
+        <p style="font-size:12px; color:#94a3b8;">Enter your 12-word seed phrase or 64-character private key:</p>
+        <div class="input-group">
+            <textarea id="importInput" rows="3" placeholder="e.g. word1 word2 word3... or 0x..."></textarea>
+        </div>
+        <button class="btn" onclick="processImport()">Import Wallet</button>
+        <button class="btn btn-outline" onclick="closeModal('importModal')">Cancel</button>
     </div>
 </div>
 
-<!-- Receipt Modal -->
-<div id="receiptModal" class="receipt-modal">
-    <div class="receipt-card">
-        <h2>EFC PAY RECEIPT</h2>
-        <p>----------------------------------</p>
-        <p><strong>Status:</strong> SUCCESS ✅</p>
-        <p><strong>Ref:</strong> <span id="rRef"></span></p>
-        <p><strong>Amount:</strong> <span id="rAmount"></span></p>
-        <p><strong>Target:</strong> <span id="rTarget"></span></p>
-        <p><strong>Date:</strong> <span id="rDate"></span></p>
-        <p>----------------------------------</p>
-        <button class="btn" onclick="window.print()">Print / Download Receipt</button>
-        <button class="btn" style="background:#cbd5e1; margin-top:5px;" onclick="closeReceipt()">Close</button>
+<!-- MODAL: NEW WALLET CREATED -->
+<div id="newWalletModal" class="modal">
+    <div class="modal-card">
+        <h2 style="color:var(--success);">Wallet Created! 🎉</h2>
+        <p style="font-size:12px; color:#94a3b8;">Write down your 12-word secret recovery phrase in a safe place. Do not lose it!</p>
+        <div id="generatedPhrase" class="seed-box"></div>
+        <button class="btn" onclick="confirmNewWalletSaved()">I Have Saved It Safely</button>
     </div>
 </div>
 
 <script>
 const BACKEND_URL = "https://efikcoin-efc-1.onrender.com";
+const BSC_RPC = "https://bsc-dataseed.binance.org/";
 const EFC_CONTRACT = "0x677c7F01373516A7955FAD8A771e84C1C526fed1";
-const BSC_CHAIN_ID = "0x38"; // 56 in Hex
+const EFC_MERCHANT_RECEIVER = "0x11D849ce49C784EF98444f5e00Bcc8a0A3d4db07";
 
 const ERC20_ABI = [
     "function balanceOf(address owner) view returns (uint256)",
-    "function transfer(address to, uint256 amount) returns (bool)"
+    "function transfer(address to, uint256 amount) returns (bool)",
+    "function decimals() view returns (uint8)"
 ];
 
-let provider, signer, userAddress;
+let provider, walletSigner, userWallet;
 
-async function connectWallet() {
-    try {
-        if (window.ethereum) {
-            provider = new ethers.providers.Web3Provider(window.ethereum);
-            await provider.send("eth_requestAccounts", []);
-            
-            // Auto Switch to BSC Network
-            try {
-                await window.ethereum.request({
-                    method: 'wallet_switchEthereumChain',
-                    params: [{ chainId: BSC_CHAIN_ID }],
-                });
-            } catch (switchError) {
-                console.log("Switching chain failed, requesting chain add...");
-            }
+function initApp() {
+    provider = new ethers.providers.JsonRpcProvider(BSC_RPC);
+    const savedKey = localStorage.getItem("efc_private_key");
 
-            signer = provider.getSigner();
-            userAddress = await signer.getAddress();
-            document.getElementById("walletAddr").innerText = userAddress;
-            document.getElementById("connectBtn").innerText = userAddress.substring(0, 6) + "..." + userAddress.substring(38);
-            
-            loadBalance();
-        } else {
-            alert("Please open this app directly inside Trust Wallet, MetaMask, or a Web3 Enabled Browser!");
+    if (savedKey) {
+        try {
+            userWallet = new ethers.Wallet(savedKey, provider);
+            loadDashboard();
+        } catch (e) {
+            console.error("Wallet load error:", e);
+            localStorage.removeItem("efc_private_key");
+            showNoWalletState();
         }
-    } catch (err) {
-        alert("Wallet Error: " + err.message);
+    } else {
+        showNoWalletState();
     }
 }
 
-async function loadBalance() {
+function showNoWalletState() {
+    document.getElementById("walletStatusBadge").innerText = "No Wallet Loaded";
+    document.getElementById("walletStatusBadge").style.background = "var(--danger)";
+    document.getElementById("noWalletCard").style.display = "block";
+    document.getElementById("dashboardCard").style.display = "none";
+    document.getElementById("appTabs").style.display = "none";
+    hideAllTabs();
+}
+
+function loadDashboard() {
+    document.getElementById("walletStatusBadge").innerText = "Self-Custodial Active ✅";
+    document.getElementById("walletStatusBadge").style.background = "var(--success)";
+    document.getElementById("noWalletCard").style.display = "none";
+    document.getElementById("dashboardCard").style.display = "block";
+    document.getElementById("appTabs").style.display = "flex";
+    
+    document.getElementById("displayAddr").innerText = userWallet.address;
+    switchTab('utilities');
+    refreshBalances();
+    renderHistory();
+}
+
+async function refreshBalances() {
+    if (!userWallet) return;
     try {
+        document.getElementById("displayEfc").innerText = "Loading...";
+        document.getElementById("displayBnb").innerText = "Loading...";
+
+        // BNB Balance
+        const bnbWei = await provider.getBalance(userWallet.address);
+        document.getElementById("displayBnb").innerText = parseFloat(ethers.utils.formatEther(bnbWei)).toFixed(4) + " BNB";
+
+        // EFC Token Balance
         const contract = new ethers.Contract(EFC_CONTRACT, ERC20_ABI, provider);
-        const bal = await contract.balanceOf(userAddress);
-        document.getElementById("efcBal").innerText = ethers.utils.formatUnits(bal, 18) + " EFC";
-    } catch (e) {
-        console.error("Balance Load Error:", e);
+        const efcWei = await contract.balanceOf(userWallet.address);
+        document.getElementById("displayEfc").innerText = parseFloat(ethers.utils.formatUnits(efcWei, 18)).toFixed(2) + " EFC";
+    } catch (err) {
+        console.error("Error refreshing balances:", err);
     }
 }
 
-function switchTab(tab) {
-    document.getElementById("utilitiesTab").style.display = tab === 'utilities' ? 'block' : 'none';
-    document.getElementById("payoutTab").style.display = tab === 'payout' ? 'block' : 'none';
-    document.getElementById("historyTab").style.display = tab === 'history' ? 'block' : 'none';
-    
-    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-    event.target.classList.add("active");
+function createNewWallet() {
+    const randomWallet = ethers.Wallet.createRandom();
+    document.getElementById("generatedPhrase").innerText = randomWallet.mnemonic.phrase;
+    window.tempWalletKey = randomWallet.privateKey;
+    document.getElementById("newWalletModal").style.display = "flex";
 }
 
-async function processPayment() {
-    if (!signer) return alert("Please connect your wallet first!");
+function confirmNewWalletSaved() {
+    if (window.tempWalletKey) {
+        localStorage.setItem("efc_private_key", window.tempWalletKey);
+        userWallet = new ethers.Wallet(window.tempWalletKey, provider);
+        document.getElementById("newWalletModal").style.display = "none";
+        loadDashboard();
+    }
+}
+
+function showImportModal() {
+    document.getElementById("importModal").style.display = "flex";
+}
+
+function processImport() {
+    const input = document.getElementById("importInput").value.trim();
+    if (!input) return alert("Please enter a valid seed phrase or private key!");
+
+    try {
+        let importedWallet;
+        if (input.includes(" ")) {
+            importedWallet = ethers.Wallet.fromMnemonic(input);
+        } else {
+            const key = input.startsWith("0x") ? input : "0x" + input;
+            importedWallet = new ethers.Wallet(key);
+        }
+
+        localStorage.setItem("efc_private_key", importedWallet.privateKey);
+        userWallet = importedWallet.connect(provider);
+        closeModal("importModal");
+        loadDashboard();
+    } catch (e) {
+        alert("Invalid Key/Phrase: " + e.message);
+    }
+}
+
+async function executeUtilityPayment() {
+    if (!userWallet) return alert("No wallet loaded!");
     
-    const phone = document.getElementById("phoneNum").value;
-    const amount = document.getElementById("billAmount").value;
-    const service = document.getElementById("serviceCategory").value;
+    const phone = document.getElementById("phoneNum").value.trim();
+    const amount = document.getElementById("billAmount").value.trim();
     const providerName = document.getElementById("provider").value;
 
-    if (!phone || !amount) return alert("Fill in phone number and amount!");
+    if (!phone || !amount) return alert("Please fill in both phone number and amount!");
 
     try {
-        const contract = new ethers.Contract(EFC_CONTRACT, ERC20_ABI, signer);
+        // 1. Send EFC directly on-chain
+        const contract = new ethers.Contract(EFC_CONTRACT, ERC20_ABI, userWallet);
+        const efcAmount = ethers.utils.parseUnits((amount / 100).toString(), 18); // 1 EFC = 100 NGN demo rate
         
-        // 1 EFC = 100 NGN demo conversion
-        const efcCost = ethers.utils.parseUnits((amount / 100).toString(), 18);
-        
-        // Execute EFC transfer on BSC
-        const tx = await contract.transfer("0x11D849ce49C784EF98444f5e00Bcc8a0A3d4db07", efcCost);
-        alert("Transaction sent on-chain! Waiting for confirmation...");
+        alert("Signing transaction on BSC... Please wait.");
+        const tx = await contract.transfer(EFC_MERCHANT_RECEIVER, efcAmount);
+        alert("Transaction sent to BSC! Waiting for network confirmation...");
         const receipt = await tx.wait();
 
-        // Call Backend API
+        // 2. Notify backend service (VTpass)
         const res = await fetch(`${BACKEND_URL}/api/merchant/pay-bill`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -227,16 +312,73 @@ async function processPayment() {
         });
 
         const data = await res.json();
-        if(data.success) {
+        if (data.success) {
+            alert("SUCCESS! " + data.message);
             saveTransaction("Utility Payment", amount + " NGN", phone, receipt.transactionHash);
-            showReceipt(data.message, amount + " NGN", phone);
+            refreshBalances();
         } else {
-            alert("Backend Error: " + data.message);
+            alert("Provider Error: " + data.message);
         }
 
     } catch (err) {
-        alert("Payment Failed: " + err.message);
+        alert("Payment Error: " + (err.reason || err.message));
     }
+}
+
+async function executeBankPayout() {
+    if (!userWallet) return alert("No wallet loaded!");
+
+    const bankCode = document.getElementById("bankCode").value.trim();
+    const accountNumber = document.getElementById("accNumber").value.trim();
+    const amount = document.getElementById("payoutAmount").value.trim();
+
+    if (!bankCode || !accountNumber || !amount) return alert("Please fill in all bank details!");
+
+    try {
+        const contract = new ethers.Contract(EFC_CONTRACT, ERC20_ABI, userWallet);
+        const efcAmount = ethers.utils.parseUnits((amount / 100).toString(), 18);
+
+        alert("Signing transfer on BSC...");
+        const tx = await contract.transfer(EFC_MERCHANT_RECEIVER, efcAmount);
+        alert("Transaction broadcasted! Awaiting confirmation...");
+        const receipt = await tx.wait();
+
+        const res = await fetch(`${BACKEND_URL}/api/merchant/withdraw-to-bank`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                txHash: receipt.transactionHash,
+                bankCode: bankCode,
+                accountNumber: accountNumber,
+                amountFiat: amount
+            })
+        });
+
+        const data = await res.json();
+        if (data.success) {
+            alert("TRANSFER QUEUED: " + data.message);
+            saveTransaction("Bank Transfer", amount + " NGN", accountNumber, receipt.transactionHash);
+            refreshBalances();
+        } else {
+            alert("Flutterwave Error: " + data.message);
+        }
+
+    } catch (err) {
+        alert("Transfer Error: " + (err.reason || err.message));
+    }
+}
+
+function switchTab(tab) {
+    hideAllTabs();
+    document.getElementById(tab + "Tab").style.display = "block";
+    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+    event.target.classList.add("active");
+}
+
+function hideAllTabs() {
+    ["utilities", "payout", "history", "settings"].forEach(t => {
+        document.getElementById(t + "Tab").style.display = "none";
+    });
 }
 
 function saveTransaction(type, amount, target, txHash) {
@@ -249,32 +391,41 @@ function saveTransaction(type, amount, target, txHash) {
 function renderHistory() {
     let history = JSON.parse(localStorage.getItem("efc_txs") || "[]");
     const container = document.getElementById("txList");
-    if(history.length === 0) return;
-    
+    if (history.length === 0) return;
+
     container.innerHTML = history.map(tx => `
         <div class="tx-item">
             <div>
                 <strong>${tx.type}</strong> - ${tx.amount}<br>
                 <small>${tx.target} | ${tx.date}</small>
             </div>
-            <button onclick="showReceipt('${tx.txHash}', '${tx.amount}', '${tx.target}')">Receipt</button>
+            <a href="https://bscscan.com/tx/${tx.txHash}" target="_blank" style="color:var(--accent); font-size:12px; text-decoration:none;">BscScan ↗</a>
         </div>
     `).join("");
 }
 
-function showReceipt(ref, amount, target) {
-    document.getElementById("rRef").innerText = ref;
-    document.getElementById("rAmount").innerText = amount;
-    document.getElementById("rTarget").innerText = target;
-    document.getElementById("rDate").innerText = new Date().toLocaleString();
-    document.getElementById("receiptModal").style.display = "flex";
+function copyAddress() {
+    navigator.clipboard.writeText(userWallet.address);
+    alert("Wallet address copied to clipboard!");
 }
 
-function closeReceipt() {
-    document.getElementById("receiptModal").style.display = "none";
+function exportPrivateKey() {
+    alert("YOUR PRIVATE KEY:\n\n" + localStorage.getItem("efc_private_key"));
 }
 
-window.onload = renderHistory;
+function removeWallet() {
+    if (confirm("Are you sure? Make sure you have backed up your key, or you will lose access to this wallet!")) {
+        localStorage.removeItem("efc_private_key");
+        userWallet = null;
+        showNoWalletState();
+    }
+}
+
+function closeModal(id) {
+    document.getElementById(id).style.display = "none";
+}
+
+window.onload = initApp;
 </script>
 </body>
 </html>
