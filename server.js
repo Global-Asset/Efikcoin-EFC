@@ -1,220 +1,137 @@
-const express = require('express');
-const cors = require('cors');
-const axios = require('axios');
-const { ethers } = require('ethers');
+const express = require("express");
+const cors = require("cors");
+const fetch = require("node-fetch"); // Works with Node 18+ or node-fetch v2/v3
 
 const app = express();
+
 app.use(cors());
 app.use(express.json());
 
-// ==================== ENVIRONMENT CONFIGURATION ====================
-const PORT = process.env.PORT || 3000;
-const FLW_SECRET_KEY = process.env.FLW_SECRET_KEY; // Live secret key from Flutterwave Dashboard
-const FLW_SECRET_HASH = process.env.FLW_SECRET_HASH; // Webhook Secret Hash from Flutterwave Settings
-const BSC_RPC_URL = process.env.BSC_RPC_URL || "https://bsc-dataseed.binance.org/";
+// Load Flutterwave Secret Key from Render Environment
+const FLW_SECRET_KEY = process.env.FLW_SECRET_KEY ? process.env.FLW_SECRET_KEY.trim() : "";
 
-// Format private key safely
-let rawKey = process.env.OPERATOR_PRIVATE_KEY || "";
-if (rawKey && !rawKey.startsWith("0x")) {
-    rawKey = "0x" + rawKey;
+// Diagnostic Startup Check
+console.log("=========================================");
+console.log("🚀 EFC PAY BACKEND SERVER STARTING");
+if (!FLW_SECRET_KEY) {
+    console.error("❌ CRITICAL ERROR: FLW_SECRET_KEY environment variable is MISSING on Render!");
+} else if (!FLW_SECRET_KEY.startsWith("FLWSECK-")) {
+    console.warn("⚠️ WARNING: FLW_SECRET_KEY does not start with 'FLWSECK-'. Double check your live secret key.");
+} else {
+    console.log("✅ FLW_SECRET_KEY loaded successfully (Prefix: " + FLW_SECRET_KEY.substring(0, 12) + "...)");
 }
+console.log("=========================================");
 
-// Contract & Addresses
-const EFC_CONTRACT_ADDRESS = "0x677ce9cba67f7484ea951a12897ce780cfd8fed1";
-const EFC_ABI = [
-    "function balanceOf(address account) view returns (uint256)",
-    "function transfer(address recipient, uint256 amount) returns (bool)",
-    "function decimals() view returns (uint8)"
-];
-
-// Web3 Initialization
-const provider = new ethers.providers.JsonRpcProvider(BSC_RPC_URL);
-let relayerWallet;
-let efcContract;
-
-try {
-    if (rawKey && rawKey.length >= 64) {
-        relayerWallet = new ethers.Wallet(rawKey, provider);
-        efcContract = new ethers.Contract(EFC_CONTRACT_ADDRESS, EFC_ABI, relayerWallet);
-        console.log("[WEB3 READY] Relayer Wallet Address:", relayerWallet.address);
-    } else {
-        console.warn("[WEB3 WARNING] OPERATOR_PRIVATE_KEY missing or invalid format.");
-    }
-} catch (e) {
-    console.error("[WEB3 ERROR] Failed to load wallet:", e.message);
-}
-
-// ==================== ROUTE 1: FLUTTERWAVE BANK PAYOUT ====================
-app.post('/api/merchant/payout-bank', async (req, res) => {
-    try {
-        const { accountBank, accountNumber, amount, narration, walletAddress } = req.body;
-
-        if (!accountBank || !accountNumber || !amount) {
-            return res.status(400).json({ success: false, error: "Missing required bank details or amount." });
-        }
-
-        const response = await axios.post(
-            'https://api.flutterwave.com/v3/transfers',
-            {
-                account_bank: accountBank,
-                account_number: accountNumber,
-                amount: parseFloat(amount),
-                narration: narration || "EFC Merchant Withdrawal",
-                currency: "NGN",
-                reference: `EFC_PAYOUT_${Date.now()}_${Math.floor(Math.random() * 1000)}`
-            },
-            {
-                headers: {
-                    'Authorization': `Bearer ${FLW_SECRET_KEY}`,
-                    'Content-Type': 'application/json'
-                }
-            }
-        );
-
-        return res.json({
-            success: true,
-            message: "Payout initiated successfully via Flutterwave.",
-            data: response.data.data
-        });
-
-    } catch (error) {
-        console.error("Flutterwave Payout Error:", error.response ? error.response.data : error.message);
-        return res.status(500).json({
-            success: false,
-            error: error.response ? error.response.data.message : "Bank Payout execution failed."
-        });
-    }
+// -------------------------------------------------------------
+// 1. HEALTH CHECK ENDPOINT
+// -------------------------------------------------------------
+app.get("/", (req, res) => {
+    res.json({
+        status: "online",
+        service: "EFC Pay Merchant Backend",
+        key_configured: Boolean(FLW_SECRET_KEY)
+    });
 });
 
-// ==================== ROUTE 2: FLUTTERWAVE WEBHOOK (AUTOMATED EFC DISPATCH) ====================
-app.post('/api/webhooks/flutterwave', async (req, res) => {
-    try {
-        const signature = req.headers['verif-hash'];
-        if (!signature || signature !== FLW_SECRET_HASH) {
-            return res.status(401).send("Unauthorized Webhook Signature.");
-        }
-
-        const payload = req.body;
-
-        if (payload.status === 'successful' && payload.event === 'charge.completed') {
-            const amountPaidNGN = payload.data.amount;
-            const customerMeta = payload.data.meta || {};
-            const userWalletAddress = customerMeta.walletAddress || payload.data.tx_ref;
-
-            console.log(`[BANK DEPOSIT DETECTED] Amount: ${amountPaidNGN} NGN for Wallet: ${userWalletAddress}`);
-
-            if (userWalletAddress && ethers.utils.isAddress(userWalletAddress) && efcContract) {
-                const ratePerNGN = 0.01; 
-                const efcToCredit = amountPaidNGN * ratePerNGN;
-                const parsedEFC = ethers.utils.parseUnits(efcToCredit.toString(), 18);
-
-                console.log(`[ON-CHAIN DISPATCH] Sending ${efcToCredit} EFC to ${userWalletAddress}...`);
-                const tx = await efcContract.transfer(userWalletAddress, parsedEFC);
-                await tx.wait();
-
-                console.log(`[SUCCESS] EFC Token Transfer Confirmed! Tx Hash: ${tx.hash}`);
-            }
-        }
-
-        return res.status(200).send("Webhook Processed Successfully");
-
-    } catch (error) {
-        console.error("Webhook Execution Error:", error.message);
-        return res.status(500).send("Webhook Error processing transaction.");
-    }
-});
-
-// ==================== ROUTE 3: PAY UTILITIES & BILLS (AIRTIME / DATA / ELECTRICITY) ====================
-app.post('/api/merchant/pay-bill', async (req, res) => {
+// -------------------------------------------------------------
+// 2. UTILITY & BILL PAYMENTS (AIRTIME, DATA, ELECTRICITY)
+// -------------------------------------------------------------
+app.post("/api/merchant/pay-bill", async (req, res) => {
     try {
         const { customer, amount, type, country } = req.body;
 
-        if (!customer || !amount) {
-            return res.status(400).json({ success: false, error: "Missing customer account or bill amount." });
+        console.log(`\n[BILL REQUEST] Type: ${type} | Customer: ${customer} | Amount: ${amount}`);
+
+        if (!FLW_SECRET_KEY) {
+            console.error("[BILL ERROR] Secret Key is not configured on server.");
+            return res.status(500).json({ success: false, error: "Server Configuration Error: Missing FLW_SECRET_KEY" });
         }
 
-        const response = await axios.post(
-            'https://api.flutterwave.com/v3/bills',
-            {
-                country: country || "NG",
-                customer: customer,
-                amount: parseFloat(amount),
-                type: type || "AIRTIME",
-                reference: `EFC_BILL_${Date.now()}`
+        const payload = {
+            country: country || "NG",
+            customer: String(customer).trim(),
+            amount: Number(amount),
+            type: type, // "AIRTIME", "MOBILEDATA", or "ELECTRICITY"
+            reference: `EFC-BILL-${Date.now()}`
+        };
+
+        const flwResponse = await fetch("https://api.flutterwave.com/v3/bills", {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${FLW_SECRET_KEY}`,
+                "Content-Type": "application/json"
             },
-            {
-                headers: {
-                    'Authorization': `Bearer ${FLW_SECRET_KEY}`,
-                    'Content-Type': 'application/json'
-                }
-            }
-        );
-
-        return res.json({
-            success: true,
-            message: "Utility payment executed successfully.",
-            data: response.data.data
+            body: JSON.stringify(payload)
         });
 
-    } catch (error) {
-        console.error("Bill Payment Error:", error.response ? error.response.data : error.message);
-        return res.status(500).json({
-            success: false,
-            error: error.response ? error.response.data.message : "Bill payment failed."
-        });
+        const flwData = await flwResponse.json();
+
+        console.log(`[BILL RESPONSE STATUS] HTTP ${flwResponse.status}`);
+        console.log("[BILL RESPONSE DATA]", JSON.stringify(flwData, null, 2));
+
+        if (flwResponse.ok && flwData.status === "success") {
+            return res.json({ success: true, data: flwData.data });
+        } else {
+            const errorMsg = flwData.message || "Flutterwave transaction rejected";
+            return res.status(flwResponse.status || 400).json({ success: false, error: errorMsg, details: flwData });
+        }
+    } catch (err) {
+        console.error("[BILL EXCEPTION]", err);
+        return res.status(500).json({ success: false, error: err.message });
     }
 });
 
-// ==================== ROUTE 4: BANK BUY (FIAT DIRECT PURCHASE) ====================
-app.post('/api/merchant/bank-buy', async (req, res) => {
+// -------------------------------------------------------------
+// 3. BANK PAYOUT / WITHDRAWAL ENDPOINT
+// -------------------------------------------------------------
+app.post("/api/merchant/payout-bank", async (req, res) => {
     try {
-        const { amount, email, walletAddress } = req.body;
+        const { accountBank, accountNumber, amount, narration } = req.body;
 
-        if (!amount || !walletAddress) {
-            return res.status(400).json({ success: false, error: "Missing purchase amount or wallet address." });
+        console.log(`\n[PAYOUT REQUEST] Bank: ${accountBank} | Acc: ${accountNumber} | Amount: ${amount}`);
+
+        if (!FLW_SECRET_KEY) {
+            console.error("[PAYOUT ERROR] Secret Key is not configured on server.");
+            return res.status(500).json({ success: false, error: "Server Configuration Error: Missing FLW_SECRET_KEY" });
         }
 
-        const response = await axios.post(
-            'https://api.flutterwave.com/v3/payments',
-            {
-                tx_ref: `EFC_BUY_${walletAddress.substring(0,6)}_${Date.now()}`,
-                amount: parseFloat(amount),
-                currency: "NGN",
-                redirect_url: "https://efcpay.efikcoin.xyz",
-                customer: {
-                    email: email || "customer@efikcoin.xyz"
-                },
-                meta: {
-                    walletAddress: walletAddress
-                },
-                customizations: {
-                    title: "Buy EFC Tokens",
-                    description: "Direct Fiat to EFC Token Purchase"
-                }
+        const payload = {
+            account_bank: String(accountBank).trim(),
+            account_number: String(accountNumber).trim(),
+            amount: Number(amount),
+            currency: "NGN",
+            narration: narration || "EFC Settlement Payout",
+            reference: `EFC-PAYOUT-${Date.now()}`
+        };
+
+        const flwResponse = await fetch("https://api.flutterwave.com/v3/transfers", {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${FLW_SECRET_KEY}`,
+                "Content-Type": "application/json"
             },
-            {
-                headers: {
-                    'Authorization': `Bearer ${FLW_SECRET_KEY}`,
-                    'Content-Type': 'application/json'
-                }
-            }
-        );
-
-        return res.json({
-            success: true,
-            payment_link: response.data.data.link
+            body: JSON.stringify(payload)
         });
 
-    } catch (error) {
-        console.error("Bank Buy Error:", error.response ? error.response.data : error.message);
-        return res.status(500).json({
-            success: false,
-            error: error.response ? error.response.data.message : "Failed to generate bank payment link."
-        });
+        const flwData = await flwResponse.json();
+
+        console.log(`[PAYOUT RESPONSE STATUS] HTTP ${flwResponse.status}`);
+        console.log("[PAYOUT RESPONSE DATA]", JSON.stringify(flwData, null, 2));
+
+        if (flwResponse.ok && flwData.status === "success") {
+            return res.json({ success: true, data: flwData.data });
+        } else {
+            const errorMsg = flwData.message || "Payout transfer rejected";
+            return res.status(flwResponse.status || 400).json({ success: false, error: errorMsg, details: flwData });
+        }
+    } catch (err) {
+        console.error("[PAYOUT EXCEPTION]", err);
+        return res.status(500).json({ success: false, error: err.message });
     }
 });
 
 // Start Server
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`EFC Merchant Unified Server online on Render Port ${PORT}`);
+    console.log(`EFC Pay Merchant Backend active on port ${PORT}`);
 });
