@@ -98,3 +98,40 @@ app.get("/api/merchant/fiat-balance", (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`EFC Core Server active on port ${PORT}`));
+// EFC SWAP ENDPOINT
+app.post("/api/merchant/swap-efc", (req, res) => {
+    const { email, efcAmount, ngnCredit } = req.body;
+    if (userVaults[email]) {
+        userVaults[email].fiatBalance += parseFloat(ngnCredit);
+        return res.json({ success: true, newBalance: userVaults[email].fiatBalance });
+    }
+    return res.status(400).json({ success: false, error: "User vault not found." });
+});
+
+// BILLS & UTILITIES ENDPOINT
+app.post("/api/merchant/pay-bill", (req, res) => {
+    const { email, customer, amount, type } = req.body;
+    if (userVaults[email]) {
+        if (userVaults[email].fiatBalance >= parseFloat(amount)) {
+            userVaults[email].fiatBalance -= parseFloat(amount);
+            return res.json({ success: true, message: `${type} processed to ${customer}` });
+        } else {
+            return res.status(400).json({ success: false, error: "Insufficient Fiat Vault balance." });
+        }
+    }
+    return res.status(400).json({ success: false, error: "User vault not found." });
+});
+
+// SHOPPING PAYMENT ENDPOINT
+app.post("/api/merchant/shopping-pay", (req, res) => {
+    const { email, ref, source, amount } = req.body;
+    if (userVaults[email]) {
+        if (userVaults[email].fiatBalance >= parseFloat(amount)) {
+            userVaults[email].fiatBalance -= parseFloat(amount);
+            return res.json({ success: true, message: `Shopping payment confirmed for ${ref}` });
+        } else {
+            return res.status(400).json({ success: false, error: "Insufficient Fiat Vault balance." });
+        }
+    }
+    return res.status(400).json({ success: false, error: "User vault not found." });
+});
