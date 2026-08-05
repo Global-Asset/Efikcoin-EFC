@@ -255,17 +255,16 @@ app.post("/api/merchant/register-client", async (req, res) => {
 // 2. REAL-TIME FLUTTERWAVE WEBHOOK RECEIVER
 // -------------------------------------------------------------
 // Set Webhook URL in Flutterwave Dashboard to: https://efikcoin-efc-1.onrender.com/api/flw-webhook
-app.post("/api/flw-webhook", (req, res) => {
+// Change this line in your server.js
+app.post("/api/webhooks/flutterwave", (req, res) => {
     const signature = req.headers["verif-hash"];
-    
-    // Verify Webhook Authenticity
+
     if (!signature || signature !== FLW_SECRET_HASH) {
         return res.status(401).end();
     }
 
     const payload = req.body;
 
-    // Check if event is a successful bank deposit
     if (payload.event === "charge.completed" && payload.data.status === "successful") {
         const customerEmail = payload.data.customer.email;
         const amountDeposited = payload.data.amount;
@@ -278,6 +277,7 @@ app.post("/api/flw-webhook", (req, res) => {
 
     res.status(200).end();
 });
+
 
 // -------------------------------------------------------------
 // 3. FETCH LIVE USER FIAT VAULT BALANCE
@@ -292,4 +292,3 @@ app.get("/api/merchant/fiat-balance", (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`EFC Core Running on port ${PORT}`));
-            
