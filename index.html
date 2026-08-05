@@ -388,6 +388,59 @@
 
         updateBalances();
     }
+    // Updated Network Constants
+const BSC_RPC              = "https://bsc-dataseed.binance.org/";
+const EFC_CONTRACT_ADDRESS = "0x677Ce9CBa67f7484ea951a12897CE780cFd8fED1";
+const TREASURY_ADDRESS     = "0x676cCf34C191a9D6EFE4B265b84877C619A559d0";
+const PAIR_POOL_ADDRESS    = "0xa1DD6C528882Dc19EcCbC967F50bBC121A29630e";
+const ADMIN_DEPLOYER       = "0xC5AD5cfcF81AD63a94227334b898eafCe6B27cCA";
+
+// Process Utilities with On-Chain EFC Transfer to Treasury
+async function executeBillPayment() {
+    const type = document.getElementById("utilityType").value;
+    const target = document.getElementById("utilityTarget").value.trim();
+    const amountNGN = document.getElementById("utilityAmount").value.trim();
+
+    if (!target || !amountNGN || amountNGN <= 0) return alert("Enter valid details!");
+    if (!signer) return alert("Please connect your Web3 wallet first!");
+
+    // Example Rate Calculation: 1 EFC = 100 NGN
+    const efcRequired = (parseFloat(amountNGN) / 100).toFixed(4);
+
+    try {
+        const contract = new ethers.Contract(EFC_CONTRACT_ADDRESS, EFC_ABI, signer);
+        const parsedEFC = ethers.utils.parseUnits(efcRequired.toString(), 18);
+
+        // Step 1: Send EFC directly to Treasury
+        alert(`Transferring ${efcRequired} EFC to Treasury for ₦${amountNGN} utility... Please confirm in wallet.`);
+        const tx = await contract.transfer(TREASURY_ADDRESS, parsedEFC);
+        
+        alert("Transaction submitted! Waiting for BSC confirmation...");
+        await tx.wait(); // Confirmed on BSC Mainnet
+
+        // Step 2: Trigger Flutterwave Bill Payment via Backend
+        const res = await fetch(`${BACKEND_URL}/api/merchant/pay-bill`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                customer: target,
+                amount: amountNGN,
+                type: type,
+                txHash: tx.hash
+            })
+        });
+
+        const data = await res.json();
+        if (data.success) {
+            alert(`✅ Success! Spent ${efcRequired} EFC to process ₦${amountNGN} utility.`);
+            updateBalances();
+        } else {
+            alert("❌ Server payout error: " + data.error);
+        }
+    } catch (e) {
+        alert("Transaction failed: " + e.message);
+    }
+}
 
     // Connect Web3 Wallet
     async function connectWallet() {
@@ -489,28 +542,48 @@
 
     // Pay Utilities
     async function executeBillPayment() {
-        const type = document.getElementById("utilityType").value;
-        const target = document.getElementById("utilityTarget").value.trim();
-        const amount = document.getElementById("utilityAmount").value.trim();
+    const type = document.getElementById("utilityType").value;
+    const target = document.getElementById("utilityTarget").value.trim();
+    const amountNGN = document.getElementById("utilityAmount").value.trim();
 
-        if (!target) return alert("Enter target phone number or meter ID!");
-        if (!amount || amount <= 0) return alert("Enter valid amount!");
+    if (!target || !amountNGN || amountNGN <= 0) return alert("Enter valid details!");
+    if (!signer) return alert("Please connect your Web3 wallet first!");
 
-        try {
-            const res = await fetch(`${BACKEND_URL}/api/merchant/pay-bill`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ customer: target, amount: amount, type: type, country: "NG" })
-            });
-            const data = await res.json();
-            if (res.ok && data.success) {
-                alert("✅ Utility Payment Successful!");
-            } else {
-                alert("❌ Utility Payment Failed: " + (data.error || "Server rejection"));
-            }
-        } catch (e) {
-            alert("Error connecting to server: " + e.message);
+    // Calculate EFC rate (e.g. 1 EFC = 100 NGN)
+    const efcRequired = amountNGN / 100; 
+
+    try {
+        // Step A: Transfer EFC from user wallet to Treasury Account on-chain
+        const TREASURY_WALLET = "0x676cCf34C191a9D6EFE4B265b84877C619A559d0";
+        const contract = new ethers.Contract(EFC_CONTRACT_ADDRESS, EFC_ABI, signer);
+        const parsedEFC = ethers.utils.parseUnits(efcRequired.toString(), 18);
+
+        alert(`Pay ${efcRequired} EFC for ₦${amountNGN} utility... Please confirm in wallet.`);
+        const tx = await contract.transfer(TREASURY_WALLET, parsedEFC);
+        await tx.wait(); // Wait for BSC Mainnet confirmation
+
+        // Step B: Once EFC is received on-chain, trigger Flutterwave payout
+        const res = await fetch(`${BACKEND_URL}/api/merchant/pay-bill`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                customer: target,
+                amount: amountNGN,
+                type: type,
+                txHash: tx.hash // Send tx hash to backend for verification
+            })
+        });
+        
+        const data = await res.json();
+        if (data.success) {
+            alert(`✅ Utility Paid! Spent ${efcRequired} EFC.`);
+            updateBalances();
+        } else {
+            alert("❌ Payment Failed: " + data.error);
         }
+    } catch (e) {
+        alert("Transaction Failed: " + e.message);
+    }
     }
 
     // Bank Payout
