@@ -1,5 +1,11 @@
-├── index.html        # Main EFC Pay web application frontend
-├── manifest.json     # Progressive Web App (PWA) configuration
-├── sw.js             # Service worker for offline functionality & PWA caching
-└── README.md         # Documentation file
-
+efc-pay-merchant/
+├── public/
+│   ├── favicon.ico
+│   ├── logo.png
+│   └── manifest.json
+├── .env
+├── .gitignore
+├── index.html
+├── package.json
+├── README.md
+└── server.js
