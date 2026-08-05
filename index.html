@@ -4,7 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EFC Pay - Global Merchant & Financial Ecosystem</title>
+    <!-- Web3 & Flutterwave Inline SDKs -->
     <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+    <script src="https://checkout.flutterwave.com/v3.js"></script>
     <style>
         :root {
             --bg-color: #0d1117;
@@ -193,15 +195,6 @@
             margin: 6px 0;
             color: var(--text-white);
         }
-
-        .qr-placeholder {
-            text-align: center;
-            background: #fff;
-            padding: 15px;
-            border-radius: 8px;
-            display: inline-block;
-            margin: 10px 0;
-        }
     </style>
 </head>
 <body>
@@ -263,11 +256,11 @@
         <button onclick="copyWalletAddr()" class="tab-btn" style="width:100%;">Copy Address</button>
     </div>
 
-    <!-- 2. BANK BUY (FIAT DEPOSIT) TAB -->
+    <!-- 2. BANK BUY / CARD PAY (FLUTTERWAVE INTEGRATED) -->
     <div id="BankBuy" class="tab-content">
-        <h3>Deposit Fiat / Buy EFC via Bank Transfer</h3>
+        <h3>Deposit Fiat / Buy EFC</h3>
         <p style="font-size:0.85rem; margin-bottom:15px;">
-            Transfer local currency directly to the official EFC merchant settlement account to auto-credit your wallet:
+            Transfer directly to your merchant settlement bank or use card/USSD to auto-credit your wallet with $EFC$:
         </p>
 
         <div class="merchant-box">
@@ -278,10 +271,16 @@
         </div>
 
         <div class="form-group">
-            <label>Amount Deposited (NGN)</label>
+            <label>Email Address</label>
+            <input type="email" id="buyerEmail" placeholder="yourname@gmail.com" />
+        </div>
+
+        <div class="form-group">
+            <label>Amount (NGN)</label>
             <input type="number" id="fiatBuyAmount" placeholder="Enter NGN Amount (e.g., 5000)" />
         </div>
-        <button type="button" onclick="confirmBankTransfer()" class="btn-action">Confirm Bank Deposit</button>
+
+        <button type="button" onclick="payWithFlutterwave()" class="btn-action">Pay Online / Card / Bank</button>
     </div>
 
     <!-- 3. UTILITIES & BILLS TAB -->
@@ -300,7 +299,7 @@
             <input type="text" id="utilityTarget" placeholder="e.g. 09168789221 or Meter No." />
         </div>
         <div class="form-group">
-            <label>Amount (NGN / EFC Equivalent)</label>
+            <label>Amount (NGN)</label>
             <input type="number" id="utilityAmount" placeholder="Amount (e.g. 1000)" />
         </div>
         <button type="button" onclick="executeBillPayment()" class="btn-action">Pay Utility via EFC</button>
@@ -327,7 +326,7 @@
     <!-- 5. STAKE EFC TAB -->
     <div id="Stake" class="tab-content">
         <h3>Stake EFC Tokens</h3>
-        <p style="font-size:0.85rem;">Lock your $EFC$ tokens to earn passive daily yield reward.</p>
+        <p style="font-size:0.85rem;">Lock your $EFC$ tokens to earn yield reward.</p>
         <div class="form-group">
             <label>Amount to Stake</label>
             <input type="number" id="stakeAmount" placeholder="100" />
@@ -337,11 +336,14 @@
 </div>
 
 <script>
-    // Config
+    // System Configurations
     const BACKEND_URL = "https://efikcoin-efc-1.onrender.com";
     const BSC_RPC = "https://bsc-dataseed.binance.org/";
     const EFC_CONTRACT_ADDRESS = "0x677ce9cba67f7484ea951a12897ce780cfd8fed1";
-    const STAKING_CONTRACT_ADDRESS = "0x677ce9cba67f7484ea951a12897ce780cfd8fed1"; // Updated if different
+    const PAIR_POOL_ADDRESS = "0xa1DD6C528882Dc19EcCbC967F50bBC121A29630e";
+    
+    // Mapped Live Flutterwave Public Key
+    const FLW_PUBLIC_KEY = "FLWPUBK-61e4282393abeacdca7b26aed299b559-X";
 
     const EFC_ABI = [
         "function balanceOf(address owner) view returns (uint256)",
@@ -351,11 +353,10 @@
 
     let provider, signer, userWalletAddress;
 
-    // Initialize Identity & Provider
+    // App Initialization
     async function initApp() {
         provider = new ethers.providers.JsonRpcProvider(BSC_RPC);
-        
-        // Check for Web3 / MetaMask or assign local persistent wallet
+
         if (window.ethereum) {
             try {
                 const web3Provider = new ethers.providers.Web3Provider(window.ethereum);
@@ -365,7 +366,7 @@
                     userWalletAddress = await signer.getAddress();
                 }
             } catch (e) {
-                console.log("Web3 passive init fallback");
+                console.log("Web3 auto-connect skipped.");
             }
         }
 
@@ -388,9 +389,9 @@
         updateBalances();
     }
 
-    // Connect External Metamask Wallet
+    // Connect Web3 Wallet
     async function connectWallet() {
-        if (!window.ethereum) return alert("MetaMask not detected! Using assigned system wallet: " + userWalletAddress);
+        if (!window.ethereum) return alert("MetaMask not detected! Active wallet address: " + userWalletAddress);
         try {
             const web3Provider = new ethers.providers.Web3Provider(window.ethereum);
             await web3Provider.send("eth_requestAccounts", []);
@@ -413,18 +414,55 @@
         if(btnElement) btnElement.classList.add('active');
     }
 
-    // Balance Updates
+    // Update On-Chain Balances
     async function updateBalances() {
+        if (!userWalletAddress) return;
         try {
             const bnbRaw = await provider.getBalance(userWalletAddress);
             document.getElementById("bnbBalance").innerText = parseFloat(ethers.utils.formatEther(bnbRaw)).toFixed(4) + " BNB";
 
             const contract = new ethers.Contract(EFC_CONTRACT_ADDRESS, EFC_ABI, provider);
             const efcRaw = await contract.balanceOf(userWalletAddress);
-            document.getElementById("efcBalance").innerText = parseFloat(ethers.utils.formatUnits(efcRaw, 18)).toFixed(2) + " EFC";
+            const decimals = await contract.decimals();
+
+            document.getElementById("efcBalance").innerText = parseFloat(ethers.utils.formatUnits(efcRaw, decimals)).toLocaleString() + " EFC";
         } catch (e) {
-            console.error("Balance sync failed:", e);
+            console.error("Balance fetch error:", e);
         }
+    }
+
+    // Integrated Flutterwave Payment Modal
+    function payWithFlutterwave() {
+        const amount = document.getElementById("fiatBuyAmount").value.trim();
+        const email = document.getElementById("buyerEmail").value.trim() || "customer@efikcoin.xyz";
+
+        if (!amount || amount <= 0) return alert("Please enter a valid amount!");
+
+        FlutterwaveCheckout({
+            public_key: FLW_PUBLIC_KEY,
+            tx_ref: "EFC-BUY-" + Date.now(),
+            amount: Number(amount),
+            currency: "NGN",
+            payment_options: "card, banktransfer, ussd",
+            meta: {
+                wallet_address: userWalletAddress
+            },
+            customer: {
+                email: email,
+                name: "EFC Merchant Buyer"
+            },
+            customizations: {
+                title: "EFC Token Merchant Deposit",
+                description: "Purchase EFC Tokens via Bank Deposit or Card",
+                logo: "https://efikcoin.xyz/logo.png"
+            },
+            callback: function (data) {
+                alert("✅ Payment Received! Tx Reference: " + data.transaction_id + "\nYour EFC tokens will be credited shortly.");
+            },
+            onclose: function() {
+                console.log("Checkout closed");
+            }
+        });
     }
 
     // Send EFC On-Chain
@@ -434,121 +472,99 @@
 
         if (!ethers.utils.isAddress(recipient)) return alert("Invalid BSC recipient address!");
         if (!amount || amount <= 0) return alert("Invalid amount!");
-        if (!signer) return alert("Please click 'Connect Wallet' with MetaMask to complete on-chain transfers.");
+        if (!signer) return alert("Connect MetaMask to sign transfer transactions.");
 
         try {
             const contract = new ethers.Contract(EFC_CONTRACT_ADDRESS, EFC_ABI, signer);
             const parsedAmount = ethers.utils.parseUnits(amount, 18);
             const tx = await contract.transfer(recipient, parsedAmount);
-            alert("Transaction Submitted! Hash: " + tx.hash);
+            alert("Submitted! Hash: " + tx.hash);
             await tx.wait();
-            alert("✅ Transfer Confirmed On-Chain!");
+            alert("✅ Transfer Confirmed!");
             updateBalances();
         } catch (e) {
             alert("Transfer failed: " + e.message);
         }
     }
 
-    // Pay Utilities Function
+    // Pay Utilities
     async function executeBillPayment() {
         const type = document.getElementById("utilityType").value;
         const target = document.getElementById("utilityTarget").value.trim();
         const amount = document.getElementById("utilityAmount").value.trim();
 
-        if (!target) return alert("Please enter target phone number or meter number!");
-        if (!amount || amount <= 0) return alert("Please enter amount!");
-
-        alert(`Processing ${type} request...\nTarget: ${target}\nAmount: ₦${amount}`);
+        if (!target) return alert("Enter target phone number or meter ID!");
+        if (!amount || amount <= 0) return alert("Enter valid amount!");
 
         try {
             const res = await fetch(`${BACKEND_URL}/api/merchant/pay-bill`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    customer: target,
-                    amount: amount,
-                    type: type,
-                    country: "NG"
-                })
+                body: JSON.stringify({ customer: target, amount: amount, type: type, country: "NG" })
             });
             const data = await res.json();
             if (res.ok && data.success) {
-                alert("✅ Bill Payment Successful!\nRef: " + (data.data.reference || "Completed"));
+                alert("✅ Utility Payment Successful!");
             } else {
-                alert("❌ Bill Failed: " + (data.error || data.message));
+                alert("❌ Utility Payment Failed: " + (data.error || "Server rejection"));
             }
         } catch (e) {
-            alert("Backend Connection Error: " + e.message);
+            alert("Error connecting to server: " + e.message);
         }
     }
 
-    // Bank Payout Function
+    // Bank Payout
     async function executeBankPayout() {
-        const rawBankCode = document.getElementById("payoutBankCode").value.trim();
+        const rawCode = document.getElementById("payoutBankCode").value.trim();
         const accNum = document.getElementById("payoutAccNum").value.trim();
         const amount = document.getElementById("payoutAmount").value.trim();
-        const bankCode = rawBankCode.replace(/\D/g, '');
+        const bankCode = rawCode.replace(/\D/g, '');
 
-        if (!bankCode || bankCode.length < 3) return alert("Enter valid 3-digit bank code!");
-        if (!accNum || accNum.length < 10) return alert("Enter valid 10-digit account number!");
-        if (!amount || amount <= 0) return alert("Enter valid amount!");
-
-        alert(`Initiating bank payout...\nBank Code: ${bankCode}\nAccount: ${accNum}\nAmount: ₦${amount}`);
+        if (bankCode.length < 3) return alert("Enter valid 3-digit bank code!");
+        if (accNum.length < 10) return alert("Enter 10-digit account number!");
+        if (!amount || amount <= 0) return alert("Enter amount!");
 
         try {
             const res = await fetch(`${BACKEND_URL}/api/merchant/payout-bank`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    accountBank: bankCode,
-                    accountNumber: accNum,
-                    amount: amount,
-                    walletAddress: userWalletAddress,
-                    narration: "EFC Merchant Withdrawal"
-                })
+                body: JSON.stringify({ accountBank: bankCode, accountNumber: accNum, amount: amount, narration: "EFC Payout" })
             });
             const data = await res.json();
             if (res.ok && data.success) {
-                alert("✅ Bank Transfer Successful!\nRef: " + (data.data.reference || data.data.id));
+                alert("✅ Withdrawal Initiated!");
             } else {
-                alert("❌ Bank Transfer Failed: " + (data.error || data.message));
+                alert("❌ Payout Failed: " + (data.error || "Server rejection"));
             }
         } catch (e) {
-            alert("Backend Connection Error: " + e.message);
+            alert("Error connecting to server: " + e.message);
         }
     }
 
-    // Confirm Bank Deposit
-    async function confirmBankTransfer() {
-        const amount = document.getElementById("fiatBuyAmount").value.trim();
-        if (!amount || amount <= 0) return alert("Please enter the amount paid!");
-        alert(`Deposit recorded! Once Flutterwave confirms receipt of ₦${amount} at Nuvion MFB account 9907052797, your wallet (${userWalletAddress}) will be auto-credited with EFC tokens.`);
-    }
-
-    // Stake EFC Function
+    // Stake EFC
     async function stakeEFC() {
         const amount = document.getElementById("stakeAmount").value.trim();
-        if (!amount || amount <= 0) return alert("Enter valid staking amount!");
-        if (!signer) return alert("Connect MetaMask wallet to sign on-chain staking transaction.");
+        if (!amount || amount <= 0) return alert("Enter staking amount!");
+        if (!signer) return alert("Connect MetaMask wallet to stake.");
+
         try {
             const contract = new ethers.Contract(EFC_CONTRACT_ADDRESS, EFC_ABI, signer);
             const parsed = ethers.utils.parseUnits(amount, 18);
-            const tx = await contract.transfer(STAKING_CONTRACT_ADDRESS, parsed);
-            alert("Staking Transaction Submitted! Hash: " + tx.hash);
+            const tx = await contract.transfer(EFC_CONTRACT_ADDRESS, parsed);
+            alert("Submitted Staking TX: " + tx.hash);
             await tx.wait();
             alert("✅ Successfully Staked " + amount + " EFC!");
             updateBalances();
         } catch (e) {
-            alert("Staking failed: " + e.message);
+            alert("Staking error: " + e.message);
         }
     }
 
     function copyWalletAddr() {
         navigator.clipboard.writeText(userWalletAddress);
-        alert("Wallet Address Copied to Clipboard!");
+        alert("Wallet address copied!");
     }
 
-    // Auto Run on load
     window.onload = initApp;
 </script>
 </body>
