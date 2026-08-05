@@ -1,26 +1,21 @@
 const express = require("express");
 const cors = require("cors");
-const fetch = require("node-fetch");
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Environment Variables configured on Render
 const FLW_SECRET_KEY = process.env.FLW_SECRET_KEY;
-const FLW_SECRET_HASH = process.env.FLW_SECRET_HASH; // Secret hash set in Flutterwave settings
+const FLW_SECRET_HASH = process.env.FLW_SECRET_HASH;
 
-// In-Memory Vault Store (Upgrade to MongoDB/PostgreSQL for permanent storage across server restarts)
 const userVaults = {};
 
-// -------------------------------------------------------------
-// 1. REGISTER CLIENT & ISSUE LIVE BANK ACCOUNT
-// -------------------------------------------------------------
+// 1. REGISTER CLIENT
 app.post("/api/merchant/register-client", async (req, res) => {
     const { email, firstname, lastname, phonenumber, bvn } = req.body;
 
     if (!email || !firstname || !lastname) {
-        return res.status(400).json({ success: false, error: "Missing required profile fields." });
+        return res.status(400).json({ success: false, error: "Missing required fields." });
     }
 
     try {
@@ -48,7 +43,6 @@ app.post("/api/merchant/register-client", async (req, res) => {
             const accNum = flwData.data.account_number;
             const bankName = flwData.data.bank_name;
 
-            // Initialize or keep existing vault state
             if (!userVaults[email]) {
                 userVaults[email] = {
                     name: `${firstname} ${lastname}`,
@@ -59,62 +53,41 @@ app.post("/api/merchant/register-client", async (req, res) => {
                 };
             }
 
-            return res.json({
-                success: true,
-                account_number: accNum,
-                bank_name: bankName
-            });
+            return res.json({ success: true, account_number: accNum, bank_name: bankName });
         } else {
-            return res.status(400).json({
-                success: false,
-                error: flwData.message || "Failed to issue live virtual bank account."
-            });
+            return res.status(400).json({ success: false, error: flwData.message });
         }
     } catch (err) {
         return res.status(500).json({ success: false, error: err.message });
     }
 });
 
-// -------------------------------------------------------------
-// 2. YOUR FORMAL FLUTTERWAVE WEBHOOK RECEIVER
-// Endpoint: https://efikcoin-efc-1.onrender.com/api/webhooks/flutterwave
-// -------------------------------------------------------------
+// 2. WEBHOOK RECEIVER
 app.post("/api/webhooks/flutterwave", (req, res) => {
     const signature = req.headers["verif-hash"];
 
-    // Validate request authenticity
     if (!signature || signature !== FLW_SECRET_HASH) {
-        return res.status(401).send("Unauthorized Webhook Request");
+        return res.status(401).send("Unauthorized");
     }
 
     const payload = req.body;
 
-    // Listen for successful deposit events
     if (payload.event === "charge.completed" && payload.data.status === "successful") {
         const customerEmail = payload.data.customer ? payload.data.customer.email : null;
         const amountDeposited = payload.data.amount;
 
         if (customerEmail) {
-            // Ensure vault exists before crediting
             if (!userVaults[customerEmail]) {
-                userVaults[customerEmail] = {
-                    email: customerEmail,
-                    fiatBalance: 0
-                };
+                userVaults[customerEmail] = { email: customerEmail, fiatBalance: 0 };
             }
-
             userVaults[customerEmail].fiatBalance += amountDeposited;
-            console.log(`[SUCCESSFUL DEPOSIT] Credited ₦${amountDeposited} to ${customerEmail}`);
         }
     }
 
-    // Acknowledge receipt to Flutterwave immediately
-    res.status(200).send("Webhook Processed Successfully");
+    res.status(200).send("Webhook Processed");
 });
 
-// -------------------------------------------------------------
-// 3. GET LIVE CLIENT FIAT VAULT BALANCE
-// -------------------------------------------------------------
+// 3. FIAT BALANCE
 app.get("/api/merchant/fiat-balance", (req, res) => {
     const email = req.query.email;
     if (email && userVaults[email]) {
