@@ -3,21 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>EFC Pay - Core Financial Engine</title>
+    <title>EFC Pay Global - Native App</title>
 
-    <!-- Web3 & External SDKs -->
     <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
-    <script src="https://checkout.flutterwave.com/v3.js"></script>
 
     <style>
         :root {
-            --bg-color: #0b0e14;
-            --card-bg: #151921;
+            --bg-color: #0d1117;
+            --card-bg: #161b22;
             --primary: #f0a500;
             --primary-hover: #d49000;
             --text-color: #c9d1d9;
             --text-white: #ffffff;
-            --border: #262c36;
+            --border: #30363d;
             --success: #238636;
             --danger: #da3633;
         }
@@ -25,26 +23,22 @@
         * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
         body { margin: 0; padding: 15px; background-color: var(--bg-color); color: var(--text-color); display: flex; justify-content: center; }
 
-        .container { width: 100%; max-width: 520px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 16px; padding: 20px; box-shadow: 0 8px 24px rgba(0,0,0,0.7); }
+        .container { width: 100%; max-width: 500px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 16px; padding: 20px; box-shadow: 0 8px 24px rgba(0,0,0,0.6); }
         .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 15px; margin-bottom: 15px; }
-        .brand { font-size: 1.3rem; font-weight: bold; color: var(--primary); }
+        .brand { font-size: 1.2rem; font-weight: bold; color: var(--primary); }
 
-        /* Locked / Unlocked States */
-        #registrationOverlay { display: block; }
-        #appDashboard { display: none; }
+        .gate-card { background: #1c212d; border: 1px dashed var(--primary); border-radius: 12px; padding: 20px; text-align: center; margin-bottom: 20px; }
+        .balance-card { background: #21262d; border-radius: 12px; padding: 18px; text-align: center; border: 1px solid var(--border); margin-bottom: 15px; }
 
-        .lock-card { background: #1c212d; border: 1px dashed var(--primary); border-radius: 12px; padding: 20px; text-align: center; margin-bottom: 20px; }
-        .balance-card { background: #1c212d; border-radius: 12px; padding: 18px; border: 1px solid var(--border); margin-bottom: 15px; }
-        
-        .dual-balance { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; text-align: center; }
-        .balance-box { background: var(--bg-color); padding: 12px; border-radius: 8px; border: 1px solid var(--border); }
-        .balance-box h3 { margin: 4px 0 0 0; color: var(--primary); font-size: 1.3rem; }
+        .dual-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+        .stat-box { background: var(--bg-color); padding: 12px; border-radius: 8px; border: 1px solid var(--border); }
+        .stat-box h3 { margin: 4px 0 0 0; color: var(--primary); font-size: 1.2rem; }
 
-        .bank-details-box { background: #0f131a; border: 1px solid var(--primary); border-radius: 10px; padding: 12px; margin-bottom: 15px; font-size: 0.85rem; }
-        .bank-details-box p { margin: 4px 0; color: var(--text-white); }
+        .bank-box { background: #0d1117; border: 1px solid var(--primary); border-radius: 10px; padding: 14px; margin-bottom: 15px; font-size: 0.85rem; }
+        .bank-box p { margin: 4px 0; color: var(--text-white); }
 
         .nav-tabs { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 15px; }
-        .tab-btn { background: #1c212d; border: 1px solid var(--border); color: var(--text-color); padding: 8px 10px; border-radius: 8px; cursor: pointer; white-space: nowrap; font-size: 0.8rem; font-weight: bold; flex: 1; text-align: center; }
+        .tab-btn { background: #21262d; border: 1px solid var(--border); color: var(--text-color); padding: 8px 10px; border-radius: 8px; cursor: pointer; white-space: nowrap; font-size: 0.8rem; font-weight: bold; flex: 1; text-align: center; }
         .tab-btn.active { background: var(--primary); color: #000; border-color: var(--primary); }
 
         .tab-content { display: none; }
@@ -52,312 +46,230 @@
 
         .form-group { margin-bottom: 12px; }
         label { display: block; font-size: 0.82rem; margin-bottom: 5px; color: var(--text-white); }
-        input, select { width: 100%; padding: 12px; background: #0b0e14; border: 1px solid var(--border); border-radius: 8px; color: var(--text-white); font-size: 0.9rem; }
+        input { width: 100%; padding: 12px; background: #0d1117; border: 1px solid var(--border); border-radius: 8px; color: var(--text-white); font-size: 0.9rem; }
 
         .btn-action { width: 100%; padding: 12px; background: var(--primary); color: #000; border: none; border-radius: 8px; font-weight: bold; font-size: 0.95rem; cursor: pointer; margin-top: 8px; }
         .btn-action:hover { background: var(--primary-hover); }
+
+        #appDashboard { display: none; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <!-- Header -->
     <div class="header">
-        <div class="brand">🟡 EFC PAY CORE</div>
-        <button id="statusBtn" class="tab-btn active" style="flex:none; background:var(--danger); color:#fff;">Status: Locked</button>
+        <div class="brand">🟡 EFC PAY APP</div>
+        <button id="statusBadge" class="tab-btn active" style="flex:none; background:var(--danger); color:#fff;">Registration Locked</button>
     </div>
 
-    <!-- 🔒 SCREEN 1: MANDATORY CLIENT REGISTRATION -->
-    <div id="registrationOverlay">
-        <div class="lock-card">
-            <h3 style="color:var(--primary); margin-top:0;">Client Registration Required</h3>
-            <p style="font-size:0.85rem; margin-bottom:0;">You must register your profile to generate your dedicated NGN Bank Account Number and unlock the EFC Transaction Application.</p>
+    <!-- GATE 1: MANDATORY REAL CLIENT REGISTRATION -->
+    <div id="registrationGate">
+        <div class="gate-card">
+            <h3 style="color:var(--primary); margin-top:0;">Client Registration</h3>
+            <p style="font-size:0.82rem; margin-bottom:0;">Enter your official details to generate your personal live bank account number for fiat deposits and EFC trading.</p>
         </div>
 
-        <form onsubmit="handleRegistration(event)">
+        <form onsubmit="processRealRegistration(event)">
             <div class="form-group">
                 <label>First Name</label>
-                <input type="text" id="regFirstName" placeholder="e.g. Oku" required />
+                <input type="text" id="regFirst" required placeholder="Oku" />
             </div>
             <div class="form-group">
                 <label>Last Name</label>
-                <input type="text" id="regLastName" placeholder="e.g. Edet" required />
+                <input type="text" id="regLast" required placeholder="Edet" />
             </div>
             <div class="form-group">
                 <label>Email Address</label>
-                <input type="email" id="regEmail" placeholder="client@efikcoin.xyz" required />
+                <input type="email" id="regEmail" required placeholder="client@efikcoin.xyz" />
             </div>
             <div class="form-group">
                 <label>Phone Number</label>
-                <input type="tel" id="regPhone" placeholder="09168789221" required />
+                <input type="tel" id="regPhone" required placeholder="09168789221" />
             </div>
-            <button type="submit" class="btn-action">Register & Generate Accounts</button>
+            <div class="form-group">
+                <label>BVN or NIN (Required for Real Bank Provisioning)</label>
+                <input type="text" id="regBvn" placeholder="11-digit BVN" />
+            </div>
+            <button type="submit" class="btn-action">Register & Generate Real Bank Details</button>
         </form>
     </div>
 
-    <!-- 🔓 SCREEN 2: UNLOCKED DASHBOARD & TRANSACTION APP -->
+    <!-- GATE 2: UNLOCKED TRANSACTION APP -->
     <div id="appDashboard">
-        <!-- Client Vault Identity & Bank Details -->
-        <div class="bank-details-box">
-            <p><strong>Client Profile:</strong> <span id="dashClientName">-</span></p>
-            <p><strong>Assigned Bank:</strong> <span id="dashBankName">Generating...</span></p>
-            <p><strong>Personal Account Number:</strong> <span id="dashAccNum" style="color:var(--primary); font-weight:bold; font-size:1.1rem;">-</span></p>
-            <p style="font-size:0.75rem; color:#8b949e;">*Deposit NGN to this account number to automatically fund your Fiat Core Balance.</p>
+        <!-- Live Bank Account Card -->
+        <div class="bank-box">
+            <p><strong>Account Name:</strong> <span id="dashName">-</span></p>
+            <p><strong>Bank Name:</strong> <span id="dashBank">-</span></p>
+            <p><strong>Deposit Account Number:</strong> <span id="dashAcc" style="color:var(--primary); font-size:1.2rem; font-weight:bold;">-</span></p>
+            <p style="font-size:0.75rem; color:#8b949e; margin-top:6px;">Any bank transfer sent to this account number will instantly credit your Fiat Core Balance below.</p>
         </div>
 
-        <!-- Dual Fiat & Crypto Balances -->
+        <!-- Dual Balances Engine -->
         <div class="balance-card">
-            <span style="font-size: 0.8rem; text-transform: uppercase; color: #8b949e;">Your Active Balances</span>
-            <div class="dual-balance">
-                <div class="balance-box">
-                    <span style="font-size:0.75rem;">Fiat Balance</span>
-                    <h3 id="fiatBalance">₦0.00</h3>
+            <span style="font-size: 0.8rem; text-transform: uppercase; color: #8b949e;">Your Live Balances</span>
+            <div class="dual-grid">
+                <div class="stat-box">
+                    <span style="font-size:0.75rem;">Fiat Vault</span>
+                    <h3 id="fiatVal">₦0.00</h3>
                 </div>
-                <div class="balance-box">
-                    <span style="font-size:0.75rem;">Crypto Balance</span>
-                    <h3 id="efcBalance">0.00 EFC</h3>
+                <div class="stat-box">
+                    <span style="font-size:0.75rem;">EFC Wallet</span>
+                    <h3 id="efcVal">0.00 EFC</h3>
                 </div>
             </div>
             <button onclick="syncBalances()" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:0.8rem; margin-top:10px; width:100%;">
-                🔄 Sync On-Chain & Fiat Vault
+                🔄 Refresh Live Balances
             </button>
         </div>
 
         <!-- Wallet Deposit Address -->
         <div style="margin-bottom:15px; text-align:center;">
-            <span style="font-size:0.78rem; color:#8b949e;">YOUR EFC DEPOSIT ADDRESS:</span>
-            <div id="userWalletAddr" style="font-size:0.78rem; background:#0b0e14; padding:8px; border-radius:6px; border:1px solid var(--border); word-break:break-all; color:#fff; margin-top:4px;">-</div>
+            <span style="font-size:0.78rem; color:#8b949e;">PERSONAL BSC EFC ADDRESS:</span>
+            <div id="userWalletAddr" style="font-size:0.75rem; background:#0d1117; padding:8px; border-radius:6px; border:1px solid var(--border); word-break:break-all; color:#fff; margin-top:4px;">-</div>
         </div>
 
-        <!-- Navigation Tabs -->
+        <!-- Tabs -->
         <div class="nav-tabs">
-            <button class="tab-btn active" onclick="switchTab('Exchange', this)">Exchange EFC</button>
-            <button class="tab-btn" onclick="switchTab('SendEfc', this)">Send EFC</button>
-            <button class="tab-btn" onclick="switchTab('Utilities', this)">Utilities</button>
-            <button class="tab-btn" onclick="switchTab('Payout', this)">Withdraw NGN</button>
+            <button class="tab-btn active" onclick="switchTab('Swap', this)">Merchant Swap</button>
+            <button class="tab-btn" onclick="switchTab('Transfer', this)">Send EFC</button>
         </div>
 
-        <!-- TAB 1: INSTANT MERCHANT EFC <-> FIAT EXCHANGE -->
-        <div id="Exchange" class="tab-content active">
-            <h3>Instant EFC Merchant Swap</h3>
-            <p style="font-size:0.82rem;">Exchange $EFC$ directly for Fiat (NGN) into your Core Balance.</p>
+        <div id="Swap" class="tab-content active">
+            <h3>Exchange EFC for Cash</h3>
             <div class="form-group">
-                <label>Amount of EFC to Exchange</label>
-                <input type="number" id="swapEfcAmount" placeholder="100" />
+                <label>EFC Amount to Exchange</label>
+                <input type="number" id="swapAmount" placeholder="100" />
             </div>
-            <button onclick="exchangeEfcForFiat()" class="btn-action">Sell EFC to Merchant Vault</button>
+            <button onclick="swapEfcToCash()" class="btn-action">Exchange EFC for NGN</button>
         </div>
 
-        <!-- TAB 2: SEND EFC ON-CHAIN -->
-        <div id="SendEfc" class="tab-content">
-            <h3>Transfer EFC Tokens</h3>
+        <div id="Transfer" class="tab-content">
+            <h3>Send EFC On-Chain</h3>
             <div class="form-group">
                 <label>Recipient BSC Address</label>
-                <input type="text" id="sendRecipient" placeholder="0x..." />
+                <input type="text" id="sendAddress" placeholder="0x..." />
             </div>
             <div class="form-group">
-                <label>Amount (EFC)</label>
-                <input type="number" id="sendAmount" placeholder="50" />
+                <label>EFC Amount</label>
+                <input type="number" id="sendEfcAmount" placeholder="50" />
             </div>
-            <button onclick="transferEFC()" class="btn-action">Transfer EFC On-Chain</button>
-        </div>
-
-        <!-- TAB 3: UTILITY BILLS -->
-        <div id="Utilities" class="tab-content">
-            <h3>Pay Bills from Core Balance</h3>
-            <div class="form-group">
-                <label>Select Service</label>
-                <select id="utilityType">
-                    <option value="AIRTIME">Airtime Recharge</option>
-                    <option value="MOBILEDATA">Mobile Data Bundle</option>
-                    <option value="ELECTRICITY">Electricity Bill</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Target Phone / Account Number</label>
-                <input type="text" id="utilityTarget" placeholder="09168789221" />
-            </div>
-            <div class="form-group">
-                <label>Amount (NGN)</label>
-                <input type="number" id="utilityAmount" placeholder="1000" />
-            </div>
-            <button onclick="payUtilityFromCore()" class="btn-action">Execute Payment</button>
-        </div>
-
-        <!-- TAB 4: WITHDRAW FIAT TO ANY BANK -->
-        <div id="Payout" class="tab-content">
-            <h3>Withdraw NGN to Local Bank</h3>
-            <div class="form-group">
-                <label>Destination Bank Code</label>
-                <input type="text" id="payoutBankCode" placeholder="e.g. 058 (GTBank)" />
-            </div>
-            <div class="form-group">
-                <label>Destination Account Number</label>
-                <input type="text" id="payoutAccNum" placeholder="10-digit Account Number" />
-            </div>
-            <div class="form-group">
-                <label>Withdrawal Amount (NGN)</label>
-                <input type="number" id="payoutAmount" placeholder="1000" />
-            </div>
-            <button onclick="withdrawFiatToBank()" class="btn-action">Withdraw Fiat Cash</button>
+            <button onclick="sendEFC()" class="btn-action">Send On-Chain</button>
         </div>
     </div>
 </div>
 
 <script>
-    const BACKEND_URL          = "https://efikcoin-efc-1.onrender.com";
-    const BSC_RPC              = "https://bsc-dataseed.binance.org/";
-    const EFC_CONTRACT_ADDRESS = "0x677Ce9CBa67f7484ea951a12897CE780cFd8fED1";
-    const TREASURY_ADDRESS     = "0x676cCf34C191a9D6EFE4B265b84877C619A559d0";
+    const BACKEND_URL = "https://efikcoin-efc-1.onrender.com";
+    const BSC_RPC = "https://bsc-dataseed.binance.org/";
+    const EFC_CONTRACT = "0x677Ce9CBa67f7484ea951a12897CE780cFd8fED1";
+    const EFC_ABI = ["function balanceOf(address) view returns (uint256)", "function decimals() view returns (uint8)"];
 
-    const EFC_ABI = [
-        "function balanceOf(address owner) view returns (uint256)",
-        "function transfer(address to, uint256 amount) returns (bool)",
-        "function decimals() view returns (uint8)"
-    ];
+    let userWalletAddress, provider, userProfile;
 
-    let provider, signer, userWalletAddress;
-    let localFiatBalance = 0;
-
-    async function initApp() {
+    async function init() {
         provider = new ethers.providers.JsonRpcProvider(BSC_RPC);
 
-        // Derive or assign wallet address
-        let storedKey = localStorage.getItem("EFC_USER_KEY");
-        if (!storedKey) {
-            const newWallet = ethers.Wallet.createRandom();
-            localStorage.setItem("EFC_USER_KEY", newWallet.privateKey);
-            userWalletAddress = newWallet.address;
+        let key = localStorage.getItem("EFC_PRIVATE_KEY");
+        if (!key) {
+            const w = ethers.Wallet.createRandom();
+            localStorage.setItem("EFC_PRIVATE_KEY", w.privateKey);
+            userWalletAddress = w.address;
         } else {
-            userWalletAddress = new ethers.Wallet(storedKey).address;
+            userWalletAddress = new ethers.Wallet(key).address;
         }
 
         document.getElementById("userWalletAddr").innerText = userWalletAddress;
 
-        // Check registration status
-        const registrationData = localStorage.getItem("EFC_REGISTERED_CLIENT");
-        if (registrationData) {
-            unlockApplication(JSON.parse(registrationData));
+        const saved = localStorage.getItem("EFC_USER_PROFILE");
+        if (saved) {
+            userProfile = JSON.parse(saved);
+            unlockDashboard();
         }
     }
 
-    // Process Mandatory Registration
-    async function handleRegistration(e) {
+    async function processRealRegistration(e) {
         e.preventDefault();
-        const firstName = document.getElementById("regFirstName").value.trim();
-        const lastName = document.getElementById("regLastName").value.trim();
-        const email = document.getElementById("regEmail").value.trim();
-        const phone = document.getElementById("regPhone").value.trim();
+        
+        const payload = {
+            firstname: document.getElementById("regFirst").value.trim(),
+            lastname: document.getElementById("regLast").value.trim(),
+            email: document.getElementById("regEmail").value.trim(),
+            phonenumber: document.getElementById("regPhone").value.trim(),
+            bvn: document.getElementById("regBvn").value.trim()
+        };
 
-        alert("Registering profile and requesting your personal bank account details...");
+        alert("Requesting live bank account assignment from Flutterwave...");
 
         try {
             const res = await fetch(`${BACKEND_URL}/api/merchant/register-client`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ firstname: firstName, lastname: lastName, email: email, phonenumber: phone })
+                body: JSON.stringify(payload)
             });
 
             const data = await res.json();
-            
-            const clientProfile = {
-                name: `${firstName} ${lastName}`,
-                email: email,
-                phone: phone,
-                bankName: data.bank_name || "Nuvion MFB",
-                accountNumber: data.account_number || ("990" + Math.floor(1000000 + Math.random() * 9000000)),
-                wallet: userWalletAddress
-            };
 
-            localStorage.setItem("EFC_REGISTERED_CLIENT", JSON.stringify(clientProfile));
-            unlockApplication(clientProfile);
+            if (data.success) {
+                userProfile = {
+                    name: `${payload.firstname} ${payload.lastname}`,
+                    email: payload.email,
+                    bankName: data.bank_name,
+                    accountNumber: data.account_number
+                };
+                localStorage.setItem("EFC_USER_PROFILE", JSON.stringify(userProfile));
+                unlockDashboard();
+            } else {
+                alert("Account Creation Failed: " + data.error);
+            }
         } catch (err) {
-            alert("Registration Error: " + err.message);
+            alert("Error connecting to server: " + err.message);
         }
     }
 
-    function unlockApplication(profile) {
-        document.getElementById("registrationOverlay").style.display = "none";
+    function unlockDashboard() {
+        document.getElementById("registrationGate").style.display = "none";
         document.getElementById("appDashboard").style.display = "block";
         
-        const statusBtn = document.getElementById("statusBtn");
-        statusBtn.innerText = "Status: Active Client";
-        statusBtn.style.background = "var(--success)";
+        const badge = document.getElementById("statusBadge");
+        badge.innerText = "Verified Client";
+        badge.style.background = "var(--success)";
 
-        document.getElementById("dashClientName").innerText = profile.name;
-        document.getElementById("dashBankName").innerText = profile.bankName;
-        document.getElementById("dashAccNum").innerText = profile.accountNumber;
+        document.getElementById("dashName").innerText = userProfile.name;
+        document.getElementById("dashBank").innerText = userProfile.bankName;
+        document.getElementById("dashAcc").innerText = userProfile.accountNumber;
 
         syncBalances();
     }
 
-    // Sync Dual Balances
     async function syncBalances() {
-        if (!userWalletAddress) return;
-        try {
-            const contract = new ethers.Contract(EFC_CONTRACT_ADDRESS, EFC_ABI, provider);
-            const decimals = await contract.decimals();
-            const efcRaw = await contract.balanceOf(userWalletAddress);
+        if (!userProfile) return;
 
-            document.getElementById("efcBalance").innerText = parseFloat(ethers.utils.formatUnits(efcRaw, decimals)).toLocaleString() + " EFC";
-            
-            // Read Fiat Core Balance
-            const storedFiat = localStorage.getItem("EFC_FIAT_CORE") || "0";
-            localFiatBalance = parseFloat(storedFiat);
-            document.getElementById("fiatBalance").innerText = "₦" + localFiatBalance.toLocaleString();
+        // Sync EFC Balance
+        try {
+            const contract = new ethers.Contract(EFC_CONTRACT, EFC_ABI, provider);
+            const raw = await contract.balanceOf(userWalletAddress);
+            const dec = await contract.decimals();
+            document.getElementById("efcVal").innerText = parseFloat(ethers.utils.formatUnits(raw, dec)).toLocaleString() + " EFC";
+        } catch (e) { console.error(e); }
+
+        // Sync Fiat Balance from Server
+        try {
+            const res = await fetch(`${BACKEND_URL}/api/merchant/fiat-balance?email=${encodeURIComponent(userProfile.email)}`);
+            const data = await res.json();
+            if (data.success) {
+                document.getElementById("fiatVal").innerText = "₦" + data.balance.toLocaleString();
+            }
         } catch (e) { console.error(e); }
     }
 
-    // Exchange EFC for Fiat
-    async function exchangeEfcForFiat() {
-        const amount = document.getElementById("swapEfcAmount").value.trim();
-        if (!amount || amount <= 0) return alert("Enter valid EFC amount!");
-
-        // Exchange Rate: 1 EFC = 100 NGN
-        const fiatCredit = parseFloat(amount) * 100;
-
-        localFiatBalance += fiatCredit;
-        localStorage.setItem("EFC_FIAT_CORE", localFiatBalance.toString());
-
-        alert(`✅ Swapped ${amount} EFC for ₦${fiatCredit.toLocaleString()} Fiat credit!`);
-        syncBalances();
-    }
-
-    // Pay Utility from Fiat Core Balance
-    async function payUtilityFromCore() {
-        const type = document.getElementById("utilityType").value;
-        const target = document.getElementById("utilityTarget").value.trim();
-        const amountNGN = parseFloat(document.getElementById("utilityAmount").value.trim());
-
-        if (!target || !amountNGN || amountNGN <= 0) return alert("Enter valid details!");
-        if (localFiatBalance < amountNGN) return alert("Insufficient Fiat Balance! Fund your bank account or swap EFC.");
-
-        try {
-            const res = await fetch(`${BACKEND_URL}/api/merchant/pay-bill`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ customer: target, amount: amountNGN, type: type })
-            });
-
-            const data = await res.json();
-            if (data.success) {
-                localFiatBalance -= amountNGN;
-                localStorage.setItem("EFC_FIAT_CORE", localFiatBalance.toString());
-                alert(`✅ Utility Paid! ₦${amountNGN} deducted from Fiat balance.`);
-                syncBalances();
-            } else { alert("❌ Payment Error: " + data.error); }
-        } catch (e) { alert("Error: " + e.message); }
-    }
-
-    // Switch Tabs
-    function switchTab(tabId, btnElement) {
+    function switchTab(tabId, btn) {
         document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
         document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
         document.getElementById(tabId).classList.add('active');
-        if (btnElement) btnElement.classList.add('active');
+        if (btn) btn.classList.add('active');
     }
 
-    window.onload = initApp;
+    window.onload = init;
 </script>
 </body>
 </html>
