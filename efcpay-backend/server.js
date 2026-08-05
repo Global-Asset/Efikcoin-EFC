@@ -81,4 +81,48 @@ app.post('/api/create-invoice', (req, res) => {
 app.listen(PORT, () => {
     console.log(`🚀 EFC Merchant Server live on port ${PORT}`);
 });
-          
+    // server.js
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// FLUTTERWAVE WEBHOOK ENDPOINT
+app.post('/api/webhooks/flutterwave', (req, res) => {
+    // 1. Verify Request Authenticity via Secret Hash Header
+    const signature = req.headers['verif-hash'];
+    const secretHash = process.env.FLW_SECRET_HASH;
+
+    if (!signature || signature !== secretHash) {
+        console.warn('⚠️ Unauthorized Webhook Request Rejected!');
+        return res.status(401).send('Unauthorized webhook signature');
+    }
+
+    // 2. Acknowledge Receipt Immediately (HTTP 200 OK)
+    res.status(200).send('Webhook Received');
+
+    // 3. Process Transaction Event Asynchronously
+    const event = req.body;
+    console.log('🔔 Received Flutterwave Webhook Event:', event.event);
+
+    if (event.event === 'charge.completed' && event.data.status === 'successful') {
+        const { id, tx_ref, amount, currency, customer } = event.data;
+        const customerEmail = customer ? customer.email : 'Unknown';
+
+        console.log(`✅ SUCCESSFUL PAYMENT LOGGED:`);
+        console.log(`   - Transaction ID: ${id}`);
+        console.log(`   - Ref: ${tx_ref}`);
+        console.log(`   - Amount: ${currency} ${amount}`);
+        console.log(`   - Customer: ${customerEmail}`);
+
+        // TODO: Credit the merchant's EFC Fiat Vault or trigger on-chain actions here
+    }
+});
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+    console.log(`🚀 Server listening on port ${PORT}`);
+});
