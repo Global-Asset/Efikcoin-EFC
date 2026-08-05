@@ -1,3 +1,32 @@
+// System Contracts & Master Treasury
+const EFC_CONTRACT_ADDRESS = "0x677Ce9CBa67f7484ea951a12897CE780cFd8fED1";
+const TREASURY_ADDRESS     = "0x676cCf34C191a9D6EFE4B265b84877C619A559d0";
+const PAIR_POOL_ADDRESS    = "0xa1DD6C528882Dc19EcCbC967F50bBC121A29630e";
+const ADMIN_DEPLOYER       = "0xC5AD5cfcF81AD63a94227334b898eafCe6B27cCA";
+
+// Verify EFC Transfer On-Chain before triggering Flutterwave Bill/Payout
+async function verifyAndProcessPayment(userTxHash, expectedEfcAmount) {
+    const provider = new ethers.providers.JsonRpcProvider("https://bsc-dataseed.binance.org/");
+    const receipt = await provider.waitForTransaction(userTxHash);
+
+    if (!receipt || receipt.status !== 1) {
+        throw new Error("On-chain transaction failed or pending.");
+    }
+
+    // Verify transfer recipient is the Treasury Address
+    const isTreasuryRecipient = receipt.logs.some(log => 
+        log.address.toLowerCase() === EFC_CONTRACT_ADDRESS.toLowerCase() &&
+        log.topics[2] && 
+        log.topics[2].includes(TREASURY_ADDRESS.substring(2).toLowerCase())
+    );
+
+    if (!isTreasuryRecipient) {
+        throw new Error("Transaction did not send EFC to Treasury address.");
+    }
+
+    return true;
+}
+
 const express = require("express");
 const cors = require("cors");
 
