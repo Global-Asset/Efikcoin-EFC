@@ -175,3 +175,121 @@ app.post("/api/merchant/register-client", async (req, res) => {
         res.status(500).json({ success: false, error: err.message });
     }
 });
+const express = require("express");
+const cors = require("cors");
+const fetch = require("node-fetch");
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// Environment Variables (Set these on Render)
+const FLW_SECRET_KEY = process.env.FLW_SECRET_KEY;
+const FLW_SECRET_HASH = process.env.FLW_SECRET_HASH; // Set a custom secret phrase in Flutterwave dashboard
+
+// In-Memory Database (Replace with MongoDB/PostgreSQL in production)
+const userVaults = {};
+
+// -------------------------------------------------------------
+// 1. REGISTER CLIENT & ISSUE REAL BANK ACCOUNT
+// -------------------------------------------------------------
+app.post("/api/merchant/register-client", async (req, res) => {
+    const { email, firstname, lastname, phonenumber, bvn } = req.body;
+
+    if (!email || !firstname || !lastname) {
+        return res.status(400).json({ success: false, error: "Missing required profile fields." });
+    }
+
+    try {
+        // Direct call to Flutterwave Virtual Accounts Endpoint
+        const response = await fetch("https://api.flutterwave.com/v3/virtual-account-numbers", {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${FLW_SECRET_KEY}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                email: email,
+                is_permanent: true,
+                bvn: bvn || undefined, // Real BVN/NIN needed for live production environments
+                tx_ref: "EFC-VA-" + Date.now(),
+                phonenumber: phonenumber,
+                firstname: firstname,
+                lastname: lastname,
+                narration: `${firstname} ${lastname} - EFC Pay`
+            })
+        });
+
+        const flwData = await response.json();
+
+        if (flwData.status === "success") {
+            const accNum = flwData.data.account_number;
+            const bankName = flwData.data.bank_name;
+
+            // Save user profile to system state
+            userVaults[email] = {
+                name: `${firstname} ${lastname}`,
+                email: email,
+                accountNumber: accNum,
+                bankName: bankName,
+                fiatBalance: 0
+            };
+
+            return res.json({
+                success: true,
+                account_number: accNum,
+                bank_name: bankName
+            });
+        } else {
+            return res.status(400).json({
+                success: false,
+                error: flwData.message || "Failed to create live account number."
+            });
+        }
+    } catch (err) {
+        return res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// -------------------------------------------------------------
+// 2. REAL-TIME FLUTTERWAVE WEBHOOK RECEIVER
+// -------------------------------------------------------------
+// Set Webhook URL in Flutterwave Dashboard to: https://efikcoin-efc-1.onrender.com/api/flw-webhook
+app.post("/api/flw-webhook", (req, res) => {
+    const signature = req.headers["verif-hash"];
+    
+    // Verify Webhook Authenticity
+    if (!signature || signature !== FLW_SECRET_HASH) {
+        return res.status(401).end();
+    }
+
+    const payload = req.body;
+
+    // Check if event is a successful bank deposit
+    if (payload.event === "charge.completed" && payload.data.status === "successful") {
+        const customerEmail = payload.data.customer.email;
+        const amountDeposited = payload.data.amount;
+
+        if (userVaults[customerEmail]) {
+            userVaults[customerEmail].fiatBalance += amountDeposited;
+            console.log(`[DEPOSIT CONFIRMED] ${amountDeposited} NGN credited to ${customerEmail}`);
+        }
+    }
+
+    res.status(200).end();
+});
+
+// -------------------------------------------------------------
+// 3. FETCH LIVE USER FIAT VAULT BALANCE
+// -------------------------------------------------------------
+app.get("/api/merchant/fiat-balance", (req, res) => {
+    const email = req.query.email;
+    if (userVaults[email]) {
+        return res.json({ success: true, balance: userVaults[email].fiatBalance });
+    }
+    return res.json({ success: true, balance: 0 });
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`EFC Core Running on port ${PORT}`));
+            
