@@ -93,4 +93,12 @@ app.post("/api/merchant/payout-bank", async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`EFC Pay Server listening on port ${PORT}`));
-                
+            app.get("/api/my-ip", async (req, res) => {
+    try {
+        const response = await fetch("https://api.ipify.org?format=json");
+        const data = await response.json();
+        res.json({ outbound_ip: data.ip });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
