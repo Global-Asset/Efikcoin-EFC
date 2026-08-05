@@ -36,3 +36,51 @@ const RPC_NODES = [
     "[https://rpc.ankr.com/bsc](https://rpc.ankr.com/bsc)"
 "https://bsc-dataseed.bnbchain.org"
 ];
+
+# 🟡 EFC Pay Global — Merchant Web3 & Fiat Ecosystem
+
+EFC Pay Global is an integrated Web3 merchant gateway and fiat payment application that bridges the **Efikcoin ($EFC$) BSC Mainnet Ecosystem** with daily fiat transactions (utility bills, data subscriptions, merchant shopping, and direct bank payouts).
+
+---
+
+## 🌟 Key Features
+
+1. **Mandatory Merchant & Client Onboarding:**
+   - Onboards users by collecting identity verification parameters.
+   - Automatically provisions a dedicated, permanent NGN Virtual Bank Account via Flutterwave.
+
+2. **Dual Balance Core Engine:**
+   - **Fiat Vault (NGN):** Real-time monitoring of local cash deposits via Webhook.
+   - **EFC Wallet ($EFC$):** Direct read and transfer capabilities on Binance Smart Chain (BSC).
+
+3. **Merchant Swap & Exchange:**
+   - Instant swap engine converting $EFC$ tokens into NGN Fiat Vault credits.
+
+4. **Real-World Utility Payments:**
+   - Instant processing for Airtime, Mobile Data bundles, and Electricity Bill tokens.
+
+5. **Merchant E-Commerce Shopping:**
+   - Direct store checkout integration supporting $EFC$ tokens and NGN Fiat payments.
+
+---
+
+## ⚙️ System Contract & Vault Architecture
+
+| Component | Network Address / Configuration |
+| :--- | :--- |
+| **EFC Contract Address** | `0x677Ce9CBa67f7484ea951a12897CE780cFd8fED1` |
+| **Treasury Address** | `0x676cCf34C191a9D6EFE4B265b84877C619A559d0` |
+| **LP Pool Pair (V2)** | `0xa1DD6C528882Dc19EcCbC967F50bBC121A29630e` |
+| **Admin Deployer** | `0xC5AD5cfcF81AD63a94227334b898eafCe6B27cCA` |
+| **RPC Endpoint** | `https://bsc-dataseed.binance.org/` |
+
+---
+
+## 🚀 Environment Variables setup (`.env`)
+
+Configure the following parameters on Render or your local `.env` file:
+
+```env
+PORT=3000
+FLW_SECRET_KEY=FLWSECK_LIVE-xxxxxxxxxxxxxxxxxxxx
+FLW_SECRET_HASH=YourCustomSecretHashString
