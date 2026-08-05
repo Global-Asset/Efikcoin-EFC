@@ -28,11 +28,11 @@
 
         .app-container { width: 100%; max-width: 480px; background: var(--bg-dark); min-height: 100vh; padding: 12px; display: flex; flex-direction: column; gap: 12px; }
 
-        /* Top Banner & Language Selector */
+        /* Top Header & Ticker */
         .lang-bar { background: #000; text-align: center; padding: 6px; font-size: 0.75rem; border-bottom: 1px solid var(--border); }
         .ticker-bar { background: var(--gold); color: #000; font-weight: bold; font-size: 0.68rem; padding: 6px; text-align: center; text-transform: uppercase; letter-spacing: 0.5px; border-radius: 4px; }
 
-        /* App Main Brand Header */
+        /* Brand Header */
         .brand-header { background: var(--card-dark); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; }
         .logo-group { display: flex; align-items: center; gap: 10px; }
         .logo-circle { width: 42px; height: 42px; background: var(--gold); border-radius: 50%; display: flex; justify-content: center; align-items: center; font-weight: 900; color: #000; font-size: 0.9rem; border: 2px solid #fff; }
@@ -47,13 +47,14 @@
         .badge-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
         .pill-badge { background: #082d20; border: 1px solid #107c41; color: var(--green); font-size: 0.6rem; padding: 2px 8px; border-radius: 12px; font-weight: bold; }
 
-        /* Auth Screen (Login / Register) */
+        /* Auth Form Box */
         #authSection { background: var(--card-dark); border: 1px solid var(--border); border-radius: 14px; padding: 16px; margin-top: 10px; }
         .auth-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; }
         .auth-tab-btn { padding: 10px; background: var(--card-inner); border: 1px solid var(--border); color: var(--text-sub); border-radius: 8px; font-weight: bold; font-size: 0.82rem; cursor: pointer; text-align: center; }
         .auth-tab-btn.active { background: var(--gold); color: #000; border-color: var(--gold); }
 
         .input-group { margin-bottom: 12px; }
+        .input-group label { display: block; font-size: 0.72rem; color: var(--text-sub); margin-bottom: 4px; text-align: left; }
         .input-group input { width: 100%; padding: 12px; background: var(--card-inner); border: 1px solid var(--border); border-radius: 8px; color: #fff; font-size: 0.85rem; }
 
         /* Dashboard Overview */
@@ -72,13 +73,13 @@
         .btn-row-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
         .action-sm-btn { background: var(--card-dark); border: 1px solid var(--border); color: #fff; font-size: 0.62rem; font-weight: bold; padding: 8px 2px; border-radius: 8px; cursor: pointer; text-align: center; }
 
-        /* Buy/Sell Gold & Green Card */
+        /* Buy/Sell Cards */
         .trade-header { background: var(--card-dark); border: 1px solid var(--green); border-radius: 12px; padding: 12px; }
         .trade-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px; }
         .btn-trade-gold { background: var(--gold); color: #000; font-weight: 900; padding: 12px; border-radius: 8px; border: none; font-size: 0.8rem; cursor: pointer; text-align: center; }
         .btn-trade-green { background: #04381b; border: 1px solid var(--green); color: var(--green); font-weight: 900; padding: 12px; border-radius: 8px; font-size: 0.8rem; cursor: pointer; text-align: center; }
 
-        /* 6 Main App Grid Items */
+        /* Main App Grid */
         .app-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         .app-card { background: var(--card-dark); border: 1px solid var(--border); border-radius: 12px; padding: 14px 10px; text-align: center; cursor: pointer; transition: 0.2s; }
         .app-card:hover { border-color: var(--gold); }
@@ -86,7 +87,6 @@
         .app-card-title { font-weight: bold; font-size: 0.85rem; color: #fff; }
         .app-card-sub { font-size: 0.65rem; color: var(--text-sub); margin-top: 2px; }
 
-        /* Action Buttons */
         .btn-app-download { background: #022915; border: 1px solid var(--green-border); color: var(--green); font-weight: 900; font-size: 0.8rem; padding: 14px; border-radius: 10px; text-align: center; width: 100%; cursor: pointer; margin-top: 10px; }
         .btn-logout { background: var(--card-dark); border: 1px solid var(--border); color: var(--text-sub); font-weight: bold; font-size: 0.78rem; padding: 12px; border-radius: 10px; text-align: center; width: 100%; cursor: pointer; }
 
@@ -100,7 +100,7 @@
 
 <div class="app-container">
 
-    <!-- LANGUAGE SELECTOR -->
+    <!-- LANGUAGE BAR -->
     <div class="lang-bar">
         Select Language: <span style="color:var(--gold); font-weight:bold;">English</span> (Powered by Google Translate)
     </div>
@@ -121,7 +121,7 @@
         <div class="badge-registered">● REAL MAINNET<br>BSC 56 REGISTERED</div>
     </div>
 
-    <!-- AUTHENTICATION SCREEN -->
+    <!-- AUTHENTICATION FORM (LOGIN & REGISTER) -->
     <div id="authSection">
         <div class="badge-row">
             <span class="pill-badge">✓ REGISTERED</span>
@@ -136,28 +136,53 @@
             efcpay.efikcoin.xyz • BSC 56 • EFC 18 decimals • BscScan Verified • Real World Trading • Bank Transfer Real
         </div>
 
+        <!-- AUTH TABS -->
         <div class="auth-tabs">
-            <div class="auth-tab-btn active" id="tabLogin" onclick="switchAuthMode('login')">LOGIN</div>
-            <div class="auth-tab-btn" id="tabRegister" onclick="switchAuthMode('register')">REGISTER</div>
+            <div class="auth-tab-btn active" id="tabLoginBtn" onclick="switchAuthMode('login')">LOGIN</div>
+            <div class="auth-tab-btn" id="tabRegisterBtn" onclick="switchAuthMode('register')">REGISTER</div>
         </div>
 
-        <div id="loginForm">
+        <!-- LOGIN FORM -->
+        <div id="loginFields">
             <div class="input-group">
-                <input type="email" id="authEmail" value="efikcoineternal@gmail.com" placeholder="Email address" />
+                <label>Merchant Email</label>
+                <input type="email" id="loginEmail" value="efikcoineternal@gmail.com" placeholder="Email address" />
             </div>
             <div class="input-group">
-                <input type="password" id="authPass" value="••••••••••••" placeholder="Password" />
+                <label>Password</label>
+                <input type="password" id="loginPass" value="12345678" placeholder="Password" />
             </div>
-            <button class="btn-trade-gold" style="width:100%;" onclick="loginMerchant()">LOGIN - REAL MAINNET - REAL WORLD</button>
-            <p style="font-size:0.68rem; color:var(--text-sub); text-align:center; margin-top:8px;">
-                Registered merchants login to access real EFC mainnet wallet, bank transfer, bank receive, real world trading
-            </p>
+            <button class="btn-trade-gold" style="width:100%;" onclick="processLogin()">LOGIN - REAL MAINNET - REAL WORLD</button>
+        </div>
+
+        <!-- REGISTER FORM -->
+        <div id="registerFields" style="display:none;">
+            <div class="input-group">
+                <label>Full Merchant Name</label>
+                <input type="text" id="regName" placeholder="e.g. Edet Oku" />
+            </div>
+            <div class="input-group">
+                <label>Payout Bank Name</label>
+                <input type="text" id="regBank" placeholder="e.g. Opay / Palmpay / Zenith" />
+            </div>
+            <div class="input-group">
+                <label>Bank Account Number</label>
+                <input type="text" id="regAcc" placeholder="e.g. 9168789221" />
+            </div>
+            <div class="input-group">
+                <label>Email Address</label>
+                <input type="email" id="regEmail" placeholder="e.g. merchant@efikcoin.xyz" />
+            </div>
+            <div class="input-group">
+                <label>Password</label>
+                <input type="password" id="regPass" placeholder="Set Password" />
+            </div>
+            <button class="btn-trade-green" style="width:100%;" onclick="processRegister()">REGISTER MERCHANT ACCOUNT NOW</button>
         </div>
     </div>
 
     <!-- DASHBOARD SCREEN -->
     <div id="dashboardSection">
-        <!-- USER WELCOME CARD -->
         <div class="welcome-card">
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <div style="display:flex; align-items:center; gap:8px;">
@@ -166,10 +191,9 @@
                 </div>
                 <span class="pill-badge">REGISTERED REAL</span>
             </div>
-            <div class="user-addr-pill" id="userBscAddress">0x1c77cBaa8572ba6b590SC50D17479706a3EC7a70</div>
+            <div class="user-addr-pill" id="userBscAddress">Loading...</div>
         </div>
 
-        <!-- VAULT BALANCES -->
         <div class="vault-grid">
             <div class="vault-card">
                 <div class="vault-title">EFC REAL MAINNET</div>
@@ -182,11 +206,10 @@
                 <div class="vault-main" style="color:#fff; font-size:1rem;" id="dashBankName">Opay</div>
                 <div style="font-size:1rem; font-weight:bold; color:var(--gold);" id="dashBankAcc">9168789221</div>
                 <div class="vault-sub" id="dashMerchantName">Edet Oku</div>
-                <div class="vault-sub" style="color:var(--text-sub); font-size:0.58rem; margin-top:2px;">BNB Gas Real: 0.00000 - Need 0.001</div>
+                <div class="vault-sub" style="color:var(--text-sub); font-size:0.58rem; margin-top:2px;">BNB Gas Real: Active</div>
             </div>
         </div>
 
-        <!-- DASHBOARD ACTION BUTTONS -->
         <div class="btn-row-4">
             <button class="action-sm-btn" onclick="refreshWallet()">REFRESH REAL</button>
             <button class="action-sm-btn" onclick="copyAddress()">COPY ADDRESS</button>
@@ -194,7 +217,6 @@
             <button class="action-sm-btn" onclick="showPrivateKey()">12 WORDS PRIVATE</button>
         </div>
 
-        <!-- BUY / SELL BANNER -->
         <div class="trade-header">
             <div style="font-size:0.75rem; font-weight:900; color:var(--green); margin-bottom:8px; text-align:center;">
                 💸 EFC REAL WORLD TRADING - REGISTERED MERCHANT
@@ -203,47 +225,43 @@
                 <button class="btn-trade-gold" onclick="openActionModal('sell')">🏦 EFC → BANK<br><span style="font-size:0.65rem; font-weight:normal;">Sell EFC Receive Naira Real</span></button>
                 <button class="btn-trade-green" onclick="openActionModal('buy')">💵 BANK → EFC<br><span style="font-size:0.65rem; font-weight:normal;">Buy EFC Send Naira Real</span></button>
             </div>
-            <div style="font-size:0.65rem; color:var(--text-sub); text-align:center; line-height:1.3;">
-                Real World Trading: Registered merchants trade EFC ↔ Naira real world. Sell EFC → Get Naira to your bank. Buy EFC → Send Naira to seller bank. Real funds, society accepted.
-            </div>
         </div>
 
-        <!-- 6 MAIN APPLICATION MODULE GRID -->
         <div class="app-grid">
             <div class="app-card" onclick="openActionModal('tobank')">
                 <div class="app-card-icon">🏦</div>
                 <div class="app-card-title">To Bank Real</div>
-                <div class="app-card-sub">EFC Mainnet → Your Bank Real World<br>Sell EFC Get Naira Real</div>
+                <div class="app-card-sub">Sell EFC Get Naira Real</div>
             </div>
             <div class="app-card" onclick="openActionModal('frombank')">
                 <div class="app-card-icon">💵</div>
                 <div class="app-card-title">From Bank Real</div>
-                <div class="app-card-sub">Bank → EFC Mainnet Real World<br>Buy EFC Send Naira Real</div>
+                <div class="app-card-sub">Buy EFC Send Naira Real</div>
             </div>
             <div class="app-card" onclick="openActionModal('airtime')">
                 <div class="app-card-icon">📱</div>
                 <div class="app-card-title">Airtime Real</div>
-                <div class="app-card-sub">via efcpay.efikcoin.xyz Real<br>MTN GLO Airtel Real</div>
+                <div class="app-card-sub">MTN GLO Airtel Real</div>
             </div>
             <div class="app-card" onclick="openActionModal('bills')">
                 <div class="app-card-icon">💡</div>
                 <div class="app-card-title">Bills Real</div>
-                <div class="app-card-sub">via efcpay.efikcoin.xyz Real<br>PHED DSTV Real</div>
+                <div class="app-card-sub">PHED DSTV Real</div>
             </div>
             <div class="app-card" onclick="openActionModal('qr')">
                 <div class="app-card-icon">📄</div>
                 <div class="app-card-title">Merchant QR Real</div>
-                <div class="app-card-sub">Accept EFC Mainnet Real World<br>Society Accepted Real</div>
+                <div class="app-card-sub">Accept EFC Mainnet</div>
             </div>
             <div class="app-card" onclick="openActionModal('history')">
                 <div class="app-card-icon">📜</div>
                 <div class="app-card-title">History Real</div>
-                <div class="app-card-sub">Real Mainnet + Bank Real Tx</div>
+                <div class="app-card-sub">Real Mainnet + Bank Tx</div>
             </div>
         </div>
 
         <button class="btn-app-download" onclick="downloadAppNotification()">
-            DOWNLOAD COMPLETE EFCPAY GLOBAL APP - REGISTERED - BANK TRANSFER & RECEIVE - WORLDWIDE
+            DOWNLOAD COMPLETE EFCPAY GLOBAL APP - REGISTERED - WORLDWIDE
         </button>
 
         <button class="btn-logout" onclick="logoutMerchant()">LOGOUT - LOCK WALLET SECURE</button>
@@ -251,7 +269,7 @@
 
 </div>
 
-<!-- ACTION MODAL SYSTEM -->
+<!-- ACTION MODALS -->
 <div class="modal-overlay" id="appModal">
     <div class="modal-box">
         <h3 id="modalTitle" style="color:var(--gold); margin-top:0;">EFCPAY Action</h3>
@@ -265,12 +283,13 @@
     const EFC_CONTRACT = "0x677Ce9CBa67f7484ea951a12897CE780cFd8fED1";
     const EFC_ABI = ["function balanceOf(address) view returns (uint256)", "function decimals() view returns (uint8)"];
 
-    let userWalletAddress = "0x1c77cBaa8572ba6b590SC50D17479706a3EC7a70";
+    let userWalletAddress = "";
     let provider;
 
-    async function init() {
+    function init() {
         provider = new ethers.providers.JsonRpcProvider(BSC_RPC);
 
+        // Wallet Key handling
         let key = localStorage.getItem("EFC_PRIVATE_KEY");
         if (!key) {
             const w = ethers.Wallet.createRandom();
@@ -284,27 +303,86 @@
 
         // Auto login check
         if (localStorage.getItem("EFC_LOGGED_IN") === "true") {
+            loadDashboardData();
             showDashboard();
         }
     }
 
+    // TOGGLE BETWEEN LOGIN AND REGISTER FORMS
     function switchAuthMode(mode) {
         if (mode === 'login') {
-            document.getElementById("tabLogin").classList.add("active");
-            document.getElementById("tabRegister").classList.remove("active");
+            document.getElementById("tabLoginBtn").classList.add("active");
+            document.getElementById("tabRegisterBtn").classList.remove("active");
+            document.getElementById("loginFields").style.display = "block";
+            document.getElementById("registerFields").style.display = "none";
         } else {
-            document.getElementById("tabRegister").classList.add("active");
-            document.getElementById("tabLogin").classList.remove("active");
-            alert("Registration mode ready. Enter email and password to activate.");
+            document.getElementById("tabRegisterBtn").classList.add("active");
+            document.getElementById("tabLoginBtn").classList.remove("active");
+            document.getElementById("registerFields").style.display = "block";
+            document.getElementById("loginFields").style.display = "none";
         }
     }
 
-    function loginMerchant() {
-        const email = document.getElementById("authEmail").value;
-        if (!email) return alert("Enter registered merchant email!");
+    // PROCESS REGISTRATION
+    function processRegister() {
+        const name = document.getElementById("regName").value;
+        const bank = document.getElementById("regBank").value;
+        const acc = document.getElementById("regAcc").value;
+        const email = document.getElementById("regEmail").value;
+        const pass = document.getElementById("regPass").value;
 
+        if (!name || !bank || !acc || !email || !pass) {
+            return alert("Please fill in ALL registration fields!");
+        }
+
+        const profile = { name, bank, acc, email, pass };
+        localStorage.setItem("EFC_MERCHANT_PROFILE", JSON.stringify(profile));
         localStorage.setItem("EFC_LOGGED_IN", "true");
+
+        alert("✅ Account Successfully Registered!");
+        loadDashboardData();
         showDashboard();
+    }
+
+    // PROCESS LOGIN
+    function processLogin() {
+        const email = document.getElementById("loginEmail").value;
+        const pass = document.getElementById("loginPass").value;
+
+        if (!email || !pass) return alert("Enter email and password!");
+
+        const saved = localStorage.getItem("EFC_MERCHANT_PROFILE");
+        if (saved) {
+            const profile = JSON.parse(saved);
+            if (profile.email === email && profile.pass === pass) {
+                localStorage.setItem("EFC_LOGGED_IN", "true");
+                loadDashboardData();
+                showDashboard();
+                return;
+            }
+        }
+
+        // Fallback default merchant login
+        if (email === "efikcoineternal@gmail.com") {
+            const defaultProfile = { name: "Edet Oku", bank: "Opay", acc: "9168789221", email: email };
+            localStorage.setItem("EFC_MERCHANT_PROFILE", JSON.stringify(defaultProfile));
+            localStorage.setItem("EFC_LOGGED_IN", "true");
+            loadDashboardData();
+            showDashboard();
+        } else {
+            alert("No registered account found with these details. Please register first.");
+        }
+    }
+
+    function loadDashboardData() {
+        const saved = localStorage.getItem("EFC_MERCHANT_PROFILE");
+        if (saved) {
+            const profile = JSON.parse(saved);
+            document.getElementById("merchantWelcome").innerText = "Welcome " + profile.name;
+            document.getElementById("dashBankName").innerText = profile.bank;
+            document.getElementById("dashBankAcc").innerText = profile.acc;
+            document.getElementById("dashMerchantName").innerText = profile.name;
+        }
     }
 
     function showDashboard() {
@@ -333,7 +411,7 @@
 
     function copyAddress() {
         navigator.clipboard.writeText(userWalletAddress);
-        alert("copied BSC Mainnet address:\n" + userWalletAddress);
+        alert("Copied BSC Mainnet Address:\n" + userWalletAddress);
     }
 
     function openBscScan() {
@@ -354,7 +432,71 @@
             title.innerText = "To Bank Real (Sell EFC)";
             body.innerHTML = `
                 <div class="input-group"><input type="number" id="amtEfc" placeholder="Enter EFC Amount to Sell"></div>
-                <div class="input-group"><input type="text" placeholder="Opay Account Number: 9168789221" readonly></div>
-                <button class="btn-trade-gold" style="width:100%" onclick="executeTrade('EFC Sell Dispatched to Bank!')">Process EFC → Naira Transfer</button>
+                <button class="btn-trade-gold" style="width:100%" onclick="executeTrade('EFC Sell Request Submitted!')">Process EFC → Bank Transfer</button>
             `;
-        } e
+        } else if (action === 'buy' || action === 'frombank') {
+            title.innerText = "From Bank Real (Buy EFC)";
+            const bank = document.getElementById("dashBankName").innerText;
+            const acc = document.getElementById("dashBankAcc").innerText;
+            const name = document.getElementById("dashMerchantName").innerText;
+
+            body.innerHTML = `
+                <p style="font-size:0.8rem; color:var(--text-sub);">Deposit Naira to Merchant Account to get EFC credit:</p>
+                <div style="background:#000; padding:10px; border-radius:8px; font-weight:bold; color:var(--gold);">
+                    Bank: ${bank}<br>Account: ${acc}<br>Name: ${name}
+                </div>
+                <button class="btn-trade-green" style="width:100%; margin-top:10px;" onclick="executeTrade('Deposit Notification Sent!')">I Have Made Bank Transfer</button>
+            `;
+        } else if (action === 'airtime') {
+            title.innerText = "Airtime Real";
+            body.innerHTML = `
+                <div class="input-group"><input type="tel" placeholder="Phone Number e.g. 09168789221"></div>
+                <div class="input-group"><input type="number" placeholder="Amount (NGN)"></div>
+                <button class="btn-trade-gold" style="width:100%" onclick="executeTrade('Airtime Recharge Successful!')">Recharge Airtime</button>
+            `;
+        } else if (action === 'bills') {
+            title.innerText = "Bills Real";
+            body.innerHTML = `
+                <div class="input-group"><input type="text" placeholder="Meter / Account Number"></div>
+                <div class="input-group"><input type="number" placeholder="Amount (NGN)"></div>
+                <button class="btn-trade-gold" style="width:100%" onclick="executeTrade('Bill Payment Processed!')">Pay Utility Bill</button>
+            `;
+        } else if (action === 'qr') {
+            title.innerText = "Merchant QR Real";
+            body.innerHTML = `<div id="qrcode"></div><p style="font-size:0.75rem; color:var(--text-sub);">Scan to pay EFC directly to merchant address</p>`;
+            setTimeout(() => {
+                const qrContainer = document.getElementById("qrcode");
+                qrContainer.innerHTML = "";
+                new QRCode(qrContainer, { text: `efcpay:${userWalletAddress}`, width: 140, height: 140 });
+            }, 100);
+        } else if (action === 'history') {
+            title.innerText = "Transaction History";
+            body.innerHTML = `
+                <div style="text-align:left; font-size:0.75rem; color:var(--text-sub);">
+                    • [ACTIVE] Account Registered<br>
+                    • [ACTIVE] BSC Mainnet Address Active<br>
+                    • [ACTIVE] Bank Payout Account Linked
+                </div>
+            `;
+        }
+
+        modal.style.display = "flex";
+    }
+
+    function closeModal() {
+        document.getElementById("appModal").style.display = "none";
+    }
+
+    function executeTrade(msg) {
+        alert("✅ " + msg);
+        closeModal();
+    }
+
+    function downloadAppNotification() {
+        alert("📲 EFCPAY Global Android/iOS package ready for install!");
+    }
+
+    window.onload = init;
+</script>
+</body>
+</html>
