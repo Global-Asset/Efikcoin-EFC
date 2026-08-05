@@ -3,214 +3,144 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>EFC Pay Global - POS & Merchant App</title>
+    <title>EFC Pay - Mobile POS Terminal</title>
 
-    <!-- Ethers & QR Code Library -->
+    <!-- Web3 & QR Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
     <style>
         :root {
-            --bg-color: #0b0e14;
-            --card-bg: #151921;
+            --bg: #090c10;
+            --surface: #121721;
             --primary: #f0a500;
-            --primary-hover: #d49000;
-            --text-color: #c9d1d9;
-            --text-white: #ffffff;
-            --border: #262c36;
+            --primary-dark: #c48700;
+            --text-main: #ffffff;
+            --text-sub: #8b949e;
+            --border: #21262d;
             --success: #238636;
             --danger: #da3633;
         }
 
-        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-        body { margin: 0; padding: 12px; background-color: var(--bg-color); color: var(--text-color); display: flex; justify-content: center; }
+        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
+        body { margin: 0; padding: 0; background-color: var(--bg); color: var(--text-main); display: flex; justify-content: center; height: 100vh; overflow: hidden; }
 
-        .container { width: 100%; max-width: 520px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 16px; padding: 18px; box-shadow: 0 8px 24px rgba(0,0,0,0.7); }
-        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 12px; }
-        .brand { font-size: 1.2rem; font-weight: bold; color: var(--primary); }
+        .app-frame { width: 100%; max-width: 440px; height: 100vh; background: var(--surface); display: flex; flex-direction: column; justify-content: space-between; padding: 16px; border-left: 1px solid var(--border); border-right: 1px solid var(--border); }
 
-        .bank-box { background: #0b0e14; border: 1px solid var(--primary); border-radius: 10px; padding: 12px; margin-bottom: 12px; font-size: 0.85rem; }
-        .bank-box p { margin: 4px 0; color: var(--text-white); }
+        /* Top Header Bar */
+        .top-bar { display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+        .brand-title { font-size: 1.1rem; font-weight: bold; color: var(--primary); display: flex; align-items: center; gap: 6px; }
+        .status-dot { width: 8px; height: 8px; background: var(--success); border-radius: 50%; }
 
-        .balance-card { background: #1c212d; border-radius: 12px; padding: 15px; text-align: center; border: 1px solid var(--border); margin-bottom: 12px; }
-        .dual-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
-        .stat-box { background: var(--bg-color); padding: 10px; border-radius: 8px; border: 1px solid var(--border); }
-        .stat-box h3 { margin: 4px 0 0 0; color: var(--primary); font-size: 1.2rem; }
+        /* Persistent Balance Card */
+        .vault-card { background: #090c10; border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin: 12px 0; text-align: center; }
+        .vault-label { font-size: 0.72rem; color: var(--text-sub); text-transform: uppercase; letter-spacing: 0.5px; }
+        .vault-amount { font-size: 1.8rem; font-weight: bold; color: var(--primary); margin: 4px 0; }
+        .vault-sub { font-size: 0.8rem; color: var(--text-sub); display: flex; justify-content: center; gap: 15px; }
 
-        .nav-tabs { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-bottom: 12px; }
-        .tab-btn { background: #1c212d; border: 1px solid var(--border); color: var(--text-color); padding: 8px 10px; border-radius: 8px; cursor: pointer; white-space: nowrap; font-size: 0.75rem; font-weight: bold; flex: 1; text-align: center; }
-        .tab-btn.active { background: var(--primary); color: #000; border-color: var(--primary); }
+        /* Charge Input Screen */
+        .charge-display { background: #000; border: 2px solid var(--primary); border-radius: 12px; padding: 15px; text-align: center; margin-bottom: 10px; }
+        .charge-title { font-size: 0.75rem; color: var(--text-sub); }
+        .charge-value { font-size: 2.2rem; font-weight: bold; color: #fff; margin-top: 2px; }
 
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
+        /* Hardware Keypad */
+        .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 10px; }
+        .key-btn { background: #1a202c; border: 1px solid var(--border); color: #fff; font-size: 1.4rem; font-weight: bold; padding: 16px 0; border-radius: 10px; cursor: pointer; text-align: center; }
+        .key-btn:active { background: var(--primary); color: #000; }
+        .key-btn.action-btn { background: #2d3748; font-size: 1rem; }
 
-        .form-group { margin-bottom: 10px; }
-        label { display: block; font-size: 0.8rem; margin-bottom: 4px; color: var(--text-white); }
-        input, select { width: 100%; padding: 10px; background: #0b0e14; border: 1px solid var(--border); border-radius: 8px; color: var(--text-white); font-size: 0.88rem; }
+        /* Bottom Action Navigation */
+        .nav-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding-top: 10px; border-top: 1px solid var(--border); }
+        .nav-item { background: #1a202c; border: 1px solid var(--border); border-radius: 8px; padding: 8px 4px; text-align: center; font-size: 0.7rem; color: var(--text-sub); cursor: pointer; }
+        .nav-item.active { border-color: var(--primary); color: var(--primary); font-weight: bold; }
 
-        .btn-action { width: 100%; padding: 12px; background: var(--primary); color: #000; border: none; border-radius: 8px; font-weight: bold; font-size: 0.92rem; cursor: pointer; margin-top: 6px; }
-        .btn-action:hover { background: var(--primary-hover); }
-
-        .pos-terminal { background: #000; border: 2px solid var(--primary); border-radius: 12px; padding: 15px; text-align: center; }
+        /* Modal Overlays */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); display: none; justify-content: center; align-items: center; z-index: 100; }
+        .modal-card { width: 90%; max-width: 380px; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 20px; text-align: center; }
         #qrcode { display: flex; justify-content: center; margin: 15px 0; background: #fff; padding: 10px; border-radius: 8px; }
 
-        #appDashboard { display: none; }
-        .gate-card { background: #1c212d; border: 1px dashed var(--primary); border-radius: 12px; padding: 18px; text-align: center; margin-bottom: 15px; }
+        .btn-confirm { width: 100%; padding: 14px; background: var(--primary); color: #000; border: none; border-radius: 10px; font-weight: bold; font-size: 1rem; cursor: pointer; }
+        .btn-close { width: 100%; padding: 10px; background: transparent; color: var(--text-sub); border: none; margin-top: 8px; cursor: pointer; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <div class="header">
-        <div class="brand">🟡 EFC PAY POS</div>
-        <button id="statusBadge" class="tab-btn active" style="flex:none; background:var(--danger); color:#fff;">Status: Locked</button>
+<div class="app-frame">
+    <!-- TOP HEADER -->
+    <div class="top-bar">
+        <div class="brand-title">
+            <span class="status-dot"></span>
+            EFC POS TERMINAL
+        </div>
+        <div style="font-size:0.75rem; color:var(--text-sub);" id="posIdDisplay">ID: EFC-8921</div>
     </div>
 
-    <!-- MANDATORY REGISTRATION GATE -->
-    <div id="registrationGate">
-        <div class="gate-card">
-            <h3 style="color:var(--primary); margin-top:0;">Activate EFC Pay Profile</h3>
-            <p style="font-size:0.8rem; margin-bottom:0;">Register your profile to generate your static NGN bank account number and activate POS terminal features.</p>
+    <!-- VAULT BALANCE DISPLAY -->
+    <div class="vault-card">
+        <div class="vault-label">Available Terminal Liquidity</div>
+        <div class="vault-amount" id="fiatVaultVal">₦0.00</div>
+        <div class="vault-sub">
+            <span id="efcVaultVal">0.00 EFC</span>
+            <span>|</span>
+            <span id="bankAccVal">Acc: Loading...</span>
         </div>
-
-        <form onsubmit="processRealRegistration(event)">
-            <div class="form-group">
-                <label>First Name</label>
-                <input type="text" id="regFirst" required placeholder="Oku" />
-            </div>
-            <div class="form-group">
-                <label>Last Name</label>
-                <input type="text" id="regLast" required placeholder="Edet" />
-            </div>
-            <div class="form-group">
-                <label>Email Address</label>
-                <input type="email" id="regEmail" required placeholder="client@efikcoin.xyz" />
-            </div>
-            <div class="form-group">
-                <label>Phone Number</label>
-                <input type="tel" id="regPhone" required placeholder="09168789221" />
-            </div>
-            <button type="submit" class="btn-action">Activate Account & Terminal</button>
-        </form>
     </div>
 
-    <!-- MAIN DASHBOARD -->
-    <div id="appDashboard">
-        <!-- Live NGN Virtual Bank Account -->
-        <div class="bank-box">
-            <p><strong>Merchant Name:</strong> <span id="dashName">-</span></p>
-            <p><strong>Bank:</strong> <span id="dashBank">-</span></p>
-            <p><strong>Deposit Account Number:</strong> <span id="dashAcc" style="color:var(--primary); font-size:1.1rem; font-weight:bold;">-</span></p>
-            <p style="font-size:0.72rem; color:#8b949e; margin-top:4px;">Transfers to this account instantly credit your Fiat Vault.</p>
-        </div>
+    <!-- POS CHARGE DISPLAY -->
+    <div class="charge-display">
+        <div class="charge-title">ENTER CHARGE AMOUNT (NGN)</div>
+        <div class="charge-value">₦<span id="chargeAmount">0</span></div>
+    </div>
 
-        <!-- Live Balances Engine -->
-        <div class="balance-card">
-            <span style="font-size: 0.75rem; text-transform: uppercase; color: #8b949e;">Persistent Vault Balances</span>
-            <div class="dual-grid">
-                <div class="stat-box">
-                    <span style="font-size:0.7rem;">Fiat Vault</span>
-                    <h3 id="fiatVal">₦0.00</h3>
-                </div>
-                <div class="stat-box">
-                    <span style="font-size:0.7rem;">EFC Wallet</span>
-                    <h3 id="efcVal">0.00 EFC</h3>
-                </div>
-            </div>
-            <button onclick="syncBalances()" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:0.78rem; margin-top:8px; width:100%;">
-                🔄 Refresh Live Balances
-            </button>
-        </div>
+    <!-- NATIVE HARDWARE KEYPAD -->
+    <div class="keypad">
+        <div class="key-btn" onclick="pressKey('1')">1</div>
+        <div class="key-btn" onclick="pressKey('2')">2</div>
+        <div class="key-btn" onclick="pressKey('3')">3</div>
+        <div class="key-btn" onclick="pressKey('4')">4</div>
+        <div class="key-btn" onclick="pressKey('5')">5</div>
+        <div class="key-btn" onclick="pressKey('6')">6</div>
+        <div class="key-btn" onclick="pressKey('7')">7</div>
+        <div class="key-btn" onclick="pressKey('8')">8</div>
+        <div class="key-btn" onclick="pressKey('9')">9</div>
+        <div class="key-btn action-btn" style="color:var(--danger);" onclick="clearKeypad()">C</div>
+        <div class="key-btn" onclick="pressKey('0')">0</div>
+        <div class="key-btn action-btn" style="color:var(--primary);" onclick="deleteKey()">⌫</div>
+    </div>
 
-        <!-- BSC Address -->
-        <div style="margin-bottom:12px; text-align:center;">
-            <span style="font-size:0.75rem; color:#8b949e;">YOUR EFC BSC ADDRESS:</span>
-            <div id="userWalletAddr" style="font-size:0.72rem; background:#0b0e14; padding:6px; border-radius:6px; border:1px solid var(--border); word-break:break-all; color:#fff; margin-top:2px;">-</div>
-        </div>
+    <button class="btn-confirm" onclick="triggerPosCharge()">CHARGE TERMINAL 💳</button>
 
-        <!-- Tab Navigation Bar -->
-        <div class="nav-tabs">
-            <button class="tab-btn active" onclick="switchTab('POS', this)">📟 Merchant POS</button>
-            <button class="tab-btn" onclick="switchTab('Swap', this)">🔀 Swap</button>
-            <button class="tab-btn" onclick="switchTab('Bills', this)">📱 Bills/Data</button>
-            <button class="tab-btn" onclick="switchTab('Settings', this)">⚙️ Settings</button>
-        </div>
+    <!-- NAVIGATION BAR -->
+    <div class="nav-grid">
+        <div class="nav-item active" onclick="switchMode('pos')">📱 POS</div>
+        <div class="nav-item" onclick="switchMode('airtime')">📞 Airtime</div>
+        <div class="nav-item" onclick="switchMode('swap')">🔀 Swap</div>
+        <div class="nav-item" onclick="syncTerminalData()">🔄 Sync</div>
+    </div>
+</div>
 
-        <!-- TAB 1: INDIVIDUAL & MERCHANT POS TERMINAL -->
-        <div id="POS" class="tab-content active">
-            <div class="pos-terminal">
-                <h3 style="color:var(--primary); margin:0 0 8px 0;">EFC Pay Terminal</h3>
-                <p style="font-size:0.78rem;">Generate payment request QR code for customers</p>
-                <div class="form-group">
-                    <label style="text-align:left;">Charge Amount (NGN / EFC)</label>
-                    <input type="number" id="posAmount" placeholder="e.g. 500" oninput="generatePOSQR()" />
-                </div>
-                <div id="qrcode"></div>
-                <p id="posStatus" style="font-size:0.8rem; color:var(--primary);">Ready for transaction...</p>
-            </div>
-        </div>
-
-        <!-- TAB 2: MERCHANT SWAP -->
-        <div id="Swap" class="tab-content">
-            <h3>Exchange EFC for Fiat Cash</h3>
-            <div class="form-group">
-                <label>EFC Amount to Exchange</label>
-                <input type="number" id="swapAmount" placeholder="100" />
-            </div>
-            <button onclick="swapEfcToCash()" class="btn-action">Exchange EFC for NGN</button>
-        </div>
-
-        <!-- TAB 3: AIRTIME, DATA & BILLS -->
-        <div id="Bills" class="tab-content">
-            <h3>Pay Utility & Data Subscriptions</h3>
-            <div class="form-group">
-                <label>Category</label>
-                <select id="billType">
-                    <option value="AIRTIME">Airtime Top-up (MTN / Airtel / Glo / 9mobile)</option>
-                    <option value="DATA">Mobile Data Bundle</option>
-                    <option value="ELECTRICITY">Electricity Prepaid Token</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Target Phone Number / Meter ID</label>
-                <input type="text" id="billTarget" placeholder="09168789221" />
-            </div>
-            <div class="form-group">
-                <label>Amount (NGN)</label>
-                <input type="number" id="billAmount" placeholder="1000" />
-            </div>
-            <button onclick="payBillTransaction()" class="btn-action">Dispatch Payment</button>
-        </div>
-
-        <!-- TAB 4: SYSTEM SETTINGS -->
-        <div id="Settings" class="tab-content">
-            <h3>Terminal Settings & Security</h3>
-            <div class="form-group">
-                <label>Base Currency</label>
-                <select id="settingCurrency">
-                    <option value="NGN">NGN (Nigerian Naira)</option>
-                    <option value="USD">USD (US Dollar)</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Merchant POS Name</label>
-                <input type="text" id="settingMerchantName" placeholder="EFC Global Merchant" />
-            </div>
-            <button onclick="saveSettings()" class="btn-action">Save Terminal Settings</button>
-            
-            <hr style="border:0; border-top:1px solid var(--border); margin:15px 0;">
-            <button onclick="exportPrivateKey()" class="tab-btn" style="width:100%; background:var(--danger); color:#fff;">🔑 Export Private Key</button>
-        </div>
+<!-- QR PAYMENT MODAL -->
+<div class="modal-overlay" id="qrModal">
+    <div class="modal-card">
+        <h3 style="margin-top:0; color:var(--primary);">Scan POS Code</h3>
+        <p style="font-size:0.8rem; color:var(--text-sub);">Customer scans code below using EFC Wallet</p>
+        <div id="qrcode"></div>
+        <div style="font-size:1.2rem; font-weight:bold; margin-bottom:12px;">₦<span id="modalAmount">0</span></div>
+        <button class="btn-confirm" onclick="confirmPaymentSuccess()">Simulate Card/App Tap ✅</button>
+        <button class="btn-close" onclick="closeModal()">Cancel Charge</button>
     </div>
 </div>
 
 <script>
-    const BACKEND_URL = "https://efikcoin-efc-1.onrender.com";
+    const BACKEND_URL = window.location.origin;
     const BSC_RPC = "https://bsc-dataseed.binance.org/";
     const EFC_CONTRACT = "0x677Ce9CBa67f7484ea951a12897CE780cFd8fED1";
     const EFC_ABI = ["function balanceOf(address) view returns (uint256)", "function decimals() view returns (uint8)"];
 
-    let userWalletAddress, provider, userProfile, qrCodeObj;
+    let currentInput = "0";
+    let userProfile = null;
+    let userWalletAddress = "";
+    let provider;
 
     async function init() {
         provider = new ethers.providers.JsonRpcProvider(BSC_RPC);
@@ -224,25 +154,22 @@
             userWalletAddress = new ethers.Wallet(key).address;
         }
 
-        document.getElementById("userWalletAddr").innerText = userWalletAddress;
-
         const saved = localStorage.getItem("EFC_USER_PROFILE");
         if (saved) {
             userProfile = JSON.parse(saved);
-            unlockDashboard();
+            updateUI();
+        } else {
+            autoRegisterPOS();
         }
     }
 
-    async function processRealRegistration(e) {
-        e.preventDefault();
+    async function autoRegisterPOS() {
         const payload = {
-            firstname: document.getElementById("regFirst").value.trim(),
-            lastname: document.getElementById("regLast").value.trim(),
-            email: document.getElementById("regEmail").value.trim(),
-            phonenumber: document.getElementById("regPhone").value.trim()
+            firstname: "Merchant",
+            lastname: "Terminal",
+            email: "pos-" + Date.now() + "@efikcoin.xyz",
+            phonenumber: "09000000000"
         };
-
-        alert("Registering profile and requesting bank details...");
 
         try {
             const res = await fetch(`${BACKEND_URL}/api/merchant/register-client`, {
@@ -254,111 +181,109 @@
             const data = await res.json();
             if (data.success) {
                 userProfile = {
-                    name: `${payload.firstname} ${payload.lastname}`,
                     email: payload.email,
                     bankName: data.bank_name,
                     accountNumber: data.account_number,
                     fiatBalance: 0
                 };
                 localStorage.setItem("EFC_USER_PROFILE", JSON.stringify(userProfile));
-                unlockDashboard();
-            } else {
-                alert("Registration failed: " + data.error);
+                updateUI();
             }
-        } catch (err) { alert("Error: " + err.message); }
+        } catch (e) { console.error("Registration error:", e); }
     }
 
-    function unlockDashboard() {
-        document.getElementById("registrationGate").style.display = "none";
-        document.getElementById("appDashboard").style.display = "block";
-
-        const badge = document.getElementById("statusBadge");
-        badge.innerText = "Active Terminal";
-        badge.style.background = "var(--success)";
-
-        document.getElementById("dashName").innerText = userProfile.name;
-        document.getElementById("dashBank").innerText = userProfile.bankName;
-        document.getElementById("dashAcc").innerText = userProfile.accountNumber;
-
-        syncBalances();
-        generatePOSQR();
+    function updateUI() {
+        if (!userProfile) return;
+        document.getElementById("bankAccVal").innerText = `${userProfile.bankName}: ${userProfile.accountNumber}`;
+        document.getElementById("fiatVaultVal").innerText = "₦" + (userProfile.fiatBalance || 0).toLocaleString();
+        syncTerminalData();
     }
 
-    async function syncBalances() {
+    async function syncTerminalData() {
         if (!userProfile) return;
 
-        // Sync On-Chain EFC
+        // Fetch On-Chain EFC
         try {
             const contract = new ethers.Contract(EFC_CONTRACT, EFC_ABI, provider);
             const raw = await contract.balanceOf(userWalletAddress);
             const dec = await contract.decimals();
-            document.getElementById("efcVal").innerText = parseFloat(ethers.utils.formatUnits(raw, dec)).toLocaleString() + " EFC";
-        } catch (e) { console.error(e); }
+            document.getElementById("efcVaultVal").innerText = parseFloat(ethers.utils.formatUnits(raw, dec)).toLocaleString() + " EFC";
+        } catch (e) { console.error("EFC Sync error:", e); }
 
-        // Sync Server Fiat Balance & Cache to LocalStorage
+        // Fetch Fiat Balance from Server
         try {
             const res = await fetch(`${BACKEND_URL}/api/merchant/fiat-balance?email=${encodeURIComponent(userProfile.email)}`);
             const data = await res.json();
             if (data.success) {
                 userProfile.fiatBalance = data.balance;
                 localStorage.setItem("EFC_USER_PROFILE", JSON.stringify(userProfile));
+                document.getElementById("fiatVaultVal").innerText = "₦" + data.balance.toLocaleString();
             }
-        } catch (e) { console.error(e); }
-
-        document.getElementById("fiatVal").innerText = "₦" + (userProfile.fiatBalance || 0).toLocaleString();
+        } catch (e) { console.error("Fiat Sync error:", e); }
     }
 
-    function generatePOSQR() {
-        const amt = document.getElementById("posAmount").value || "0";
+    // Keypad Functions
+    function pressKey(num) {
+        if (currentInput === "0") currentInput = num;
+        else if (currentInput.length < 7) currentInput += num;
+        document.getElementById("chargeAmount").innerText = parseInt(currentInput).toLocaleString();
+    }
+
+    function clearKeypad() {
+        currentInput = "0";
+        document.getElementById("chargeAmount").innerText = "0";
+    }
+
+    function deleteKey() {
+        if (currentInput.length > 1) currentInput = currentInput.slice(0, -1);
+        else currentInput = "0";
+        document.getElementById("chargeAmount").innerText = parseInt(currentInput).toLocaleString();
+    }
+
+    // Charge Actions
+    function triggerPosCharge() {
+        const amt = parseInt(currentInput);
+        if (amt <= 0) return alert("Enter valid charge amount!");
+
+        document.getElementById("modalAmount").innerText = amt.toLocaleString();
+        
         const qrContainer = document.getElementById("qrcode");
         qrContainer.innerHTML = "";
+        new QRCode(qrContainer, { text: `efcpay:${userWalletAddress}?amount=${amt}`, width: 150, height: 150 });
 
-        const qrText = `efcpay:${userWalletAddress}?amount=${amt}`;
-        qrCodeObj = new QRCode(qrContainer, { text: qrText, width: 140, height: 140 });
-        document.getElementById("posStatus").innerText = `POS Ready: Scan to pay ₦${amt}`;
+        document.getElementById("qrModal").style.display = "flex";
     }
 
-    async function swapEfcToCash() {
-        const amount = document.getElementById("swapAmount").value.trim();
-        if (!amount || amount <= 0) return alert("Enter valid EFC amount!");
-
-        const creditNgn = parseFloat(amount) * 100;
-        userProfile.fiatBalance = (userProfile.fiatBalance || 0) + creditNgn;
+    function confirmPaymentSuccess() {
+        const amt = parseInt(currentInput);
+        userProfile.fiatBalance = (userProfile.fiatBalance || 0) + amt;
         localStorage.setItem("EFC_USER_PROFILE", JSON.stringify(userProfile));
 
-        alert(`✅ Swapped ${amount} EFC for ₦${creditNgn.toLocaleString()} NGN!`);
-        syncBalances();
+        alert(`✅ TRANSACTION SUCCESSFUL!\n\n₦${amt.toLocaleString()} credited to terminal.`);
+        closeModal();
+        clearKeypad();
+        updateUI();
     }
 
-    async function payBillTransaction() {
-        const type = document.getElementById("billType").value;
-        const target = document.getElementById("billTarget").value.trim();
-        const amount = parseFloat(document.getElementById("billAmount").value.trim());
-
-        if (!target || !amount || amount <= 0) return alert("Enter valid details!");
-        if ((userProfile.fiatBalance || 0) < amount) return alert("Insufficient Fiat Balance!");
-
-        userProfile.fiatBalance -= amount;
-        localStorage.setItem("EFC_USER_PROFILE", JSON.stringify(userProfile));
-
-        alert(`✅ ${type} Payment Dispatched to ${target}!`);
-        syncBalances();
+    function closeModal() {
+        document.getElementById("qrModal").style.display = "none";
     }
 
-    function saveSettings() {
-        alert("✅ Terminal Settings Saved!");
-    }
-
-    function exportPrivateKey() {
-        const key = localStorage.getItem("EFC_PRIVATE_KEY");
-        alert("🔑 PRIVATE KEY (Keep Secret):\n\n" + key);
-    }
-
-    function switchTab(tabId, btn) {
-        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
-        document.getElementById(tabId).classList.add('active');
-        if (btn) btn.classList.add('active');
+    function switchMode(mode) {
+        if (mode === 'airtime') {
+            const num = prompt("Enter customer phone number:");
+            const amt = prompt("Enter airtime amount (NGN):");
+            if (num && amt) alert(`✅ Airtime dispatched to ${num}!`);
+        } else if (mode === 'swap') {
+            const efc = prompt("Enter EFC amount to exchange:");
+            if (efc) {
+                const credit = parseFloat(efc) * 100;
+                userProfile.fiatBalance = (userProfile.fiatBalance || 0) + credit;
+                localStorage.setItem("EFC_USER_PROFILE", JSON.stringify(userProfile));
+                alert(`✅ Swapped ${efc} EFC for ₦${credit.toLocaleString()} NGN!`);
+                updateUI();
+            }
+        }
     }
 
     window.onload = init;
